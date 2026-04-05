@@ -1,0 +1,15 @@
+.venv
+__pycache__
+*.lock
+node_modules
+dist
+build
+pnpm-lock.yaml
+yarn.lock
+package-lock.json
+.DS_Store
+.idea
+.vscode
+*.log
+*.env
+*.pyc
