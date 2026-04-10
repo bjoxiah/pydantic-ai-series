@@ -39,14 +39,15 @@ model = OpenRouterModel(model_name='google/gemini-3-flash-preview', provider=pro
 agent = Agent(
      model=model,
     #  instructions="""
+    #   You are an exchange rate agent
     #     - you only respond to requests that exchange rate related.
     #     Otherwise reply -> 'I cannot help with that!'
     #  """,
-    #  system_prompt="""You are an exchange rate agent""",
+    #  system_prompt="""""",
     #  output_type=[ExchangeRate, str],
-     deps_type=Deps,
+    #  deps_type=Deps,
     #  history_processors=[],
-     mcp_servers=[server]   
+     toolsets=[server]   # replaced mcp_Servers
     )
 
 @agent.tool
@@ -66,6 +67,4 @@ async def get_exchange_rate(ctx: RunContext[Deps], currencies: list[str]) -> str
 
     return data
 
-app = agent.to_web(
-    deps=Deps(date=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")),
-    )
+app = agent.to_web()
