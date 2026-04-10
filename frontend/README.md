@@ -69,13 +69,6 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 - `pnpm start`: Start production server
 - `pnpm lint`: Run ESLint
 
-### Environment Variables
-
-Create a `.env.local` file for local development:
-
-```
-BACKEND_URL=http://localhost:8000
-```
 
 ## How It Works
 
@@ -91,6 +84,3 @@ The frontend communicates with the backend through:
 - Server-sent events for real-time updates
 - Tool calls for interactive currency selection
 
-## License
-
-Add your license information here.
