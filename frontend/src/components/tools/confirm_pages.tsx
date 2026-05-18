@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-expressions */
 import { SharedState } from '@/models';
 import { ToolCallStatus, useAgent, useHumanInTheLoop } from '@copilotkit/react-core/v2';
 import { useState } from 'react';

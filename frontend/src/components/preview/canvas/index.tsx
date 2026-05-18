@@ -11,7 +11,7 @@ import {
 } from '@xyflow/react';
 
 import '@xyflow/react/dist/style.css';
-import { useCallback, useEffect, useMemo } from 'react';
+import { useEffect } from 'react';
 
 const NODE_W = 1440;
 const NODE_H = 900;

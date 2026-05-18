@@ -15,7 +15,7 @@ export const MainComponent = () => {
 	return (
 		<CopilotKit runtimeUrl="/api/copilotkit" enableInspector={true}>
 			<ResizablePanelGroup orientation="horizontal" className='h-screen!'>
-				<ResizablePanel defaultSize={'25%'}>
+				<ResizablePanel defaultSize={'25%'} className='p-2'>
                     <ChatComponent />
                 </ResizablePanel>
 				<ResizableHandle />

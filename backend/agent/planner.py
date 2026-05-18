@@ -13,5 +13,5 @@ planner_agent = Agent(
         and generates a list of page name and description for the possible pages for the website.
         If single page website return only the page name and description
     """,
-    output_type=ConfirmedPage 
+    output_type=list[ConfirmedPage]
 )
