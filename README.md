@@ -10,6 +10,7 @@ This series is designed to help you:
 - Build AI agents and agentic workflows with Pydantic AI
 - Understand and implement the AG-UI Protocol
 - Connect AI agents to real frontend applications
+- Understand and implement multi-agent systems
 
 ## Part 1 — Foundation & AG-UI Protocol
 
@@ -26,6 +27,20 @@ This series is designed to help you:
 
 **Lesson branch:** [`intro-lessons`](https://github.com/bjoxiah/pydantic-ai-series/tree/intro-lessions) | [`ag-ui-protocol-lesson`](https://github.com/bjoxiah/pydantic-ai-series/tree/ag-ui-protocol-lesson)
 
+## Part 2 — Multi-Agent Systems & Copilotkit
+
+[![Watch on YouTube](https://img.shields.io/badge/Watch-Part%202-red)](https://youtu.be/rJrCAssCqpE)
+
+**What's covered:**
+- Agent Delegation
+- Nextjs frontend with Copilotkit
+- Reactflow (xyflow)
+- Human in the loop
+- Logfire for logging & observability
+- AI Website builder
+
+**Lesson branch:** [`multi-agent`](https://github.com/bjoxiah/pydantic-ai-series/tree/multi-agent)
+
 ## Repository Structure
 
 Each part of the series has its own branch containing the lesson code:
@@ -34,9 +49,11 @@ Each part of the series has its own branch containing the lesson code:
 |--------|-------------|
 | [`intro-lessons`](https://github.com/bjoxiah/pydantic-ai-series/tree/intro-lessions) | Foundation concepts — agents, tools, structured output, MCP, Logfire |
 | [`ag-ui-protocol-lesson`](https://github.com/bjoxiah/pydantic-ai-series/tree/ag-ui-protocol-lesson) | AG-UI Protocol implementation and demo |
+| [`multi-agent`](https://github.com/bjoxiah/pydantic-ai-series/tree/multi-agent) | Multi-Agent System implementation and demo |
 
 ## Resources
 
 - [Pydantic AI Docs](https://ai.pydantic.dev)
 - [AG-UI Protocol Docs](https://docs.ag-ui.com/introduction)
-- [YouTube Channel](https://youtu.be/zgrGWLNnfqg)
+- [CopilotKit](https://docs.copilotkit.ai/pydantic-ai)
+- [YouTube Channel](https://www.youtube.com/@joxiahdev)
