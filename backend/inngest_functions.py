@@ -11,7 +11,7 @@ from models import AgentModel
     trigger=inngest.TriggerEvent(event="agent/knowledge.ingest"),
     retries=3,
 )
-async def ingest_knowledge_fn(ctx: inngest.Context, step: inngest.Step) -> dict:
+async def ingest_knowledge_fn(ctx: inngest.Context) -> dict:
     data = ctx.event.data
     agent_id = uuid.UUID(data["agent_id"])
     url = data.get("url")
@@ -19,19 +19,19 @@ async def ingest_knowledge_fn(ctx: inngest.Context, step: inngest.Step) -> dict:
     company_name = data.get("company_name", "Company")
 
     # step 1 — crawl once, return content as string
-    content = await step.run("crawl", lambda: _crawl(url, raw_text))
+    content = await ctx.step.run("crawl", lambda: _crawl(url, raw_text))
 
     # step 2 — embed into pgvector
-    await step.run("embed-to-pgvector", lambda: _embed(agent_id, content))
+    await ctx.step.run("embed-to-pgvector", lambda: _embed(agent_id, content))
 
     # step 3 — add to neo4j
-    await step.run("add-to-graph", lambda: _add_to_graph(agent_id, content, company_name))
+    await ctx.step.run("add-to-graph", lambda: _add_to_graph(agent_id, content, company_name))
 
     # step 4 — mark agent ready
-    await step.run("mark-ready", lambda: _mark_ready(agent_id))
+    await ctx.step.run("mark-ready", lambda: _mark_ready(agent_id))
 
     # step 5 — notify FastAPI so SSE stream gets the update
-    await step.run("notify-complete", lambda: _notify_complete(str(agent_id)))
+    await ctx.step.run("notify-complete", lambda: _notify_complete(str(agent_id)))
 
     return {"agent_id": str(agent_id), "status": "ready"}
 
