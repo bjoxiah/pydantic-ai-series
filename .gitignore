@@ -1,0 +1,10 @@
+__pycache__
+.venv
+.env
+storage
+*.lock
+pnpm-lock.yaml
+dist
+build
+node_modules
+*.log

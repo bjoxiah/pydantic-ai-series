@@ -1,0 +1,25 @@
+[project]
+name = "backend"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "alembic>=1.18.4",
+    "chonkie>=1.6.7",
+    "crawlee[playwright]>=1.7.1",
+    "fastapi>=0.136.1",
+    "graphiti-core>=0.29.1",
+    "inngest>=0.5.18",
+    "neo4j>=6.2.0",
+    "openai>=2.38.0",
+    "pgvector>=0.4.2",
+    "playwright>=1.60.0",
+    "psycopg[binary]>=3.3.4",
+    "pydantic-ai>=1.105.0",
+    "pydantic-ai-slim[ag-ui]>=1.105.0",
+    "pydantic-settings>=2.14.1",
+    "python-dotenv>=1.2.2",
+    "sqlmodel>=0.0.38",
+    "uvicorn[standard]>=0.47.0",
+]

@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Widget Dev Playground</title>
+    <style>
+        body { font-family: system-ui, sans-serif; margin: 0; background: #f8f9fa; }
+        .page { max-width: 800px; margin: 0 auto; padding: 60px 24px; }
+        h1 { font-size: 28px; color: #1f2937; margin-bottom: 8px; }
+        p { color: #6b7280; line-height: 1.6; }
+        .card { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 24px; margin-top: 24px; }
+        .card h2 { font-size: 16px; color: #374151; margin: 0 0 8px; }
+        .card p { margin: 0; font-size: 14px; }
+    </style>
+</head>
+<body>
+    <div class="page">
+        <h1>Widget Playground</h1>
+        <p>The chat widget appears in the bottom-right corner. This simulates any website that embeds your widget.</p>
+        <div class="card">
+            <h2>Any Website Content</h2>
+            <p>Your widget floats over this page. Configure your agent ID and API URL in <code>src/main.tsx</code>.</p>
+        </div>
+        <div class="card">
+            <h2>How to embed on a real site</h2>
+            <p>After building, drop this script tag on any HTML page:</p>
+            <pre style="background:#f3f4f6;padding:12px;border-radius:8px;font-size:12px;margin-top:8px;overflow-x:auto">&lt;script src="https://your-cdn.com/widget.umd.js" data-agent-id="your-agent-uuid"&gt;&lt;/script&gt;
+            </pre>
+        </div>
+    </div>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+</body>
+</html>
