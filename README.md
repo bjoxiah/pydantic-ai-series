@@ -11,6 +11,7 @@ This series is designed to help you:
 - Understand and implement the AG-UI Protocol
 - Connect AI agents to real frontend applications
 - Understand and implement multi-agent systems
+- Understand how to extend Pydantic AI
 
 ## Part 1 — Foundation & AG-UI Protocol
 
@@ -41,6 +42,20 @@ This series is designed to help you:
 
 **Lesson branch:** [`multi-agent`](https://github.com/bjoxiah/pydantic-ai-series/tree/multi-agent)
 
+## Part 3 — Pydantic AI Capability
+
+[![Watch on YouTube](https://img.shields.io/badge/Watch-Part%203-red)](https://youtu.be/ILHtYme4O60)
+
+**What's covered:**
+- Capability
+- RAG Ingestion Pipeline
+- Graphiti & Neo4J (Graph RAG)
+- Research & Email Capability
+- Logfire for logging & observability
+- No Code Agent builder
+
+**Lesson branch:** [`no-code-agent`](https://github.com/bjoxiah/pydantic-ai-series/tree/no-code-agent)
+
 ## Repository Structure
 
 Each part of the series has its own branch containing the lesson code:
@@ -50,6 +65,7 @@ Each part of the series has its own branch containing the lesson code:
 | [`intro-lessons`](https://github.com/bjoxiah/pydantic-ai-series/tree/intro-lessions) | Foundation concepts — agents, tools, structured output, MCP, Logfire |
 | [`ag-ui-protocol-lesson`](https://github.com/bjoxiah/pydantic-ai-series/tree/ag-ui-protocol-lesson) | AG-UI Protocol implementation and demo |
 | [`multi-agent`](https://github.com/bjoxiah/pydantic-ai-series/tree/multi-agent) | Multi-Agent System implementation and demo |
+| [`no-code-agent`](https://github.com/bjoxiah/pydantic-ai-series/tree/no-code-agent) | Pydantic Capability implementation and demo |
 
 ## Resources
 
