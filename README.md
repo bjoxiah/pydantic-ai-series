@@ -1,59 +1,165 @@
-# Pydantic AI Series
-[![YouTube](https://img.shields.io/badge/YouTube-Tutorial-red)](https://youtu.be/zgrGWLNnfqg)
+# No Code AI Agent Builder
 
-A hands-on series on building AI agents and agentic workflows with Pydantic AI and the AG-UI Protocol.
+Build and configure AI agents without writing code. Create agents with custom capabilities — company knowledge (RAG + GraphRAG), web research, and email — then chat with them through a control panel or embed them as a widget on any website.
 
-## Series Overview
+Built with [Pydantic AI](https://pydantic.dev/docs/ai/) as part of the [Master Pydantic AI series](https://github.com/bjoxiah/pydantic-ai-series).
 
-This series is designed to help you:
+## Tech Stack
 
-- Build AI agents and agentic workflows with Pydantic AI
-- Understand and implement the AG-UI Protocol
-- Connect AI agents to real frontend applications
-- Understand and implement multi-agent systems
+- **Backend** — FastAPI, Pydantic AI, SQLModel, Alembic
+- **Database** — PostgreSQL + pgvector (semantic search), Neo4j + Graphiti (knowledge graph)
+- **Background jobs** — Inngest
+- **Frontend** — Next.js, Tailwind CSS
+- **Widget** — Vite + React (embeddable, framework-agnostic)
+- **Observability** — Logfire
+- **Capabilities** — Tavily (research), Resend (email)
 
-## Part 1 — Foundation & AG-UI Protocol
+## Project Structure
 
-[![Watch on YouTube](https://img.shields.io/badge/Watch-Part%201-red)](https://youtu.be/zgrGWLNnfqg)
+```
+pydantic-ai-series/
+├── backend/      # FastAPI server, agents, capabilities, migrations
+├── frontend/     # Next.js control panel
+├── widget/       # Embeddable chat widget
+└── docker-compose.yml
+```
 
-**What's covered:**
-- Building your first Pydantic AI agent
-- Tools, structured output & dependency injection
-- Instructions vs system prompt
-- Message history & history processors
-- MCP (Model Context Protocol) integration
-- Logfire for logging & observability
-- AG-UI Protocol — connecting your agent to a frontend UI
+## Prerequisites
 
-**Lesson branch:** [`intro-lessons`](https://github.com/bjoxiah/pydantic-ai-series/tree/intro-lessions) | [`ag-ui-protocol-lesson`](https://github.com/bjoxiah/pydantic-ai-series/tree/ag-ui-protocol-lesson)
+- Docker & Docker Compose
+- Node.js 18+ and pnpm (only needed if running the widget locally)
+- API keys: OpenRouter, Tavily, Resend, Logfire
 
-## Part 2 — Multi-Agent Systems & Copilotkit
+## Setup
 
-[![Watch on YouTube](https://img.shields.io/badge/Watch-Part%202-red)](https://youtu.be/rJrCAssCqpE)
+### 1. Environment Variables
 
-**What's covered:**
-- Agent Delegation
-- Nextjs frontend with Copilotkit
-- Reactflow (xyflow)
-- Human in the loop
-- Logfire for logging & observability
-- AI Website builder
+Create `.env` in `backend/`:
 
-**Lesson branch:** [`multi-agent`](https://github.com/bjoxiah/pydantic-ai-series/tree/multi-agent)
+```env
+OPEN_ROUTER_KEY=your_key
+TAVILY_API_KEY=your_key
+RESEND_API_KEY=your_key
+LOG_FIRE_TOKEN=your_token
+INNGEST_IS_PRODUCTION=false
+INNGEST_DEV_SERVER_URL=http://inngest:8288
+DATABASE_URL=postgresql+psycopg://postgres:postgres@postgres:5432/nocodedb
+NEO4J_URI=bolt://neo4j:7687
+NEO4J_USER=neo4j
+NEO4J_PASSWORD=password
+```
 
-## Repository Structure
+### 2. Run the Stack
 
-Each part of the series has its own branch containing the lesson code:
+From the project root:
 
-| Branch | Description |
-|--------|-------------|
-| [`intro-lessons`](https://github.com/bjoxiah/pydantic-ai-series/tree/intro-lessions) | Foundation concepts — agents, tools, structured output, MCP, Logfire |
-| [`ag-ui-protocol-lesson`](https://github.com/bjoxiah/pydantic-ai-series/tree/ag-ui-protocol-lesson) | AG-UI Protocol implementation and demo |
-| [`multi-agent`](https://github.com/bjoxiah/pydantic-ai-series/tree/multi-agent) | Multi-Agent System implementation and demo |
+```bash
+docker compose up
+```
 
-## Resources
+This starts:
 
-- [Pydantic AI Docs](https://ai.pydantic.dev)
-- [AG-UI Protocol Docs](https://docs.ag-ui.com/introduction)
-- [CopilotKit](https://docs.copilotkit.ai/pydantic-ai)
-- [YouTube Channel](https://www.youtube.com/@joxiahdev)
+| Service     | URL                          | Notes                          |
+|-------------|------------------------------|---------------------------------|
+| Frontend    | http://localhost:3000        | Control panel                   |
+| Backend     | http://localhost:8000        | FastAPI + Pydantic AI            |
+| Postgres    | localhost:5432               | pgvector enabled                |
+| Neo4j       | http://localhost:7474        | Browser UI (neo4j / password)   |
+| Inngest     | http://localhost:8288         | Background job dashboard         |
+| pgAdmin     | http://localhost:8080        | admin@admin.com / admin          |
+
+First run will take a few minutes to build images and pull dependencies.
+
+### 3. Run Database Migrations
+
+With the stack running, apply migrations inside the backend container:
+
+```bash
+docker compose exec backend alembic upgrade head
+```
+
+or from the backend folder run:
+
+```bash
+alembic upgrade head
+```
+
+### 4. Live Reload (Dev Mode)
+
+To enable file sync and auto-rebuild on changes:
+
+```bash
+docker compose watch
+```
+
+This syncs `backend/` and `frontend/` changes into the running containers without a full rebuild, and rebuilds automatically if `pyproject.toml` or `package.json` change.
+
+## Using the Platform
+
+1. Open `http://localhost:3000`
+2. Click **New Agent**
+3. Name your agent, write instructions, pick a model
+4. Select capabilities:
+   - **Company Knowledge** — provide a URL or paste text; triggers a background RAG + GraphRAG ingestion pipeline (view progress in Inngest dashboard at `:8288`)
+   - **Research** — gives the agent a Tavily web search tool
+   - **Email** — gives the agent tools to send emails
+5. Start chatting with your agent
+6. Use the agent menu (⋯) to customize the **Widget Theme** or get the **Agent Id** for the widget
+
+### Inspecting Data
+
+- **pgAdmin** (`localhost:8080`) — connect to host `postgres`, db `nocodedb`, user `postgres`, password `postgres` — view `knowledge_chunks` and vector embeddings
+- **Neo4j Browser** (`localhost:7474`) — login `neo4j` / `password` — run `MATCH (n)-[r]->(m) RETURN n, r, m LIMIT 100` to view the knowledge graph
+- **Logfire** — view agent traces, tool calls, and LLM requests
+
+## Embeddable Widget
+
+The widget is a separate Vite + React project for building an embeddable chat script.
+
+```bash
+cd widget
+pnpm install
+```
+
+Create `.env`:
+
+```env
+VITE_API_URL=http://localhost:8000
+```
+
+Run the dev playground:
+
+```bash
+pnpm dev
+```
+
+Renders at `http://localhost:5173` — simulating how it appears embedded on any website.
+
+Build for production:
+
+```bash
+pnpm build
+```
+
+Outputs `dist/widget.umd.js` and `dist/widget.es.js` — host these on a CDN and embed with:
+
+```html
+<script src="https://your-cdn.com/widget.umd.js" data-agent-id="your-agent-id"></script>
+```
+
+The widget loads its theme and configuration automatically from your backend.
+
+## Stopping the Stack
+
+```bash
+docker compose down
+```
+
+To also remove volumes (Postgres and Neo4j data):
+
+```bash
+docker compose down -v
+```
+## License
+
+MIT
