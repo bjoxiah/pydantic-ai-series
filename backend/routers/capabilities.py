@@ -11,5 +11,15 @@ def list_capabilities():
             "name": "Company Knowledge",
             "description": "Answer questions from your company docs or website",
             "requires_knowledge": True,
+        },
+        {
+            "id": "email",
+            "name": "Email",
+            "description": "Send email to a provided email address"
+        },
+        {
+            "id": "research",
+            "name": "Research",
+            "description": "Research any given topic"
         }
     ]

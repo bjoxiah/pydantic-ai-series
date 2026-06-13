@@ -11,7 +11,8 @@ class Settings(BaseSettings):
     log_fire_token: str = Field(alias="LOG_FIRE_TOKEN")
     inngest_is_production: bool = Field(alias="INNGEST_IS_PRODUCTION")
     inngest_dev_server_url: str = Field(alias="INNGEST_DEV_SERVER_URL")
-    
+    tavily_api_key: str = Field(alias="TAVILY_API_KEY")
+    resend_api_key: str = Field(alias="RESEND_API_KEY")
 
     model_config = SettingsConfigDict(
         env_file=".env",

@@ -112,7 +112,9 @@ export const AgentDashboard = () => {
         es.onmessage = e => {
             const { status } = JSON.parse(e.data);
             if (status === 'ready') {
-                setAgents(prev => prev.map(a => a.id === agent.id ? { ...a, ingestion_status: 'ready' } : a));
+                const updatedAgent = { ...agent, ingestion_status: 'ready' };
+                setAgents(prev => prev.map(a => a.id === agent.id ? updatedAgent : a));
+                setSelectedAgent(updatedAgent); 
                 es.close();
             }
         };

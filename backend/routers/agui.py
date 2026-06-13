@@ -14,6 +14,8 @@ from sqlmodel import Session
 
 from agent.capabilities.company.company_knowledge import CompanyKnowledgeCapability
 from agent.setup import create_agent
+from agent.capabilities.email.email_capability import EmailCapability
+from agent.capabilities.research.research_capability import ResearchCapability
 from db import get_session
 from models import AgentModel, Conversation
 
@@ -31,6 +33,14 @@ def resolve_capabilities(db_agent: AgentModel) -> list:
                     agent_id=db_agent.id,
                     company_name=db_agent.name,
                 )
+            )
+        if cap_id == "email":
+            capabilities.append(
+                EmailCapability()
+            )
+        if cap_id == "research":
+            capabilities.append(
+                ResearchCapability()
             )
 
     return capabilities
