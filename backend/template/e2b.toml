@@ -1,0 +1,16 @@
+# This is a config for E2B sandbox template.
+# You can use template ID (1gvmo3ai1lkjd0iwxznp) or template name (react-native-node22) to create a sandbox:
+
+# Python SDK
+# from e2b import Sandbox, AsyncSandbox
+# sandbox = Sandbox.create("react-native-node22") # Sync sandbox
+# sandbox = await AsyncSandbox.create("react-native-node22") # Async sandbox
+
+# JS SDK
+# import { Sandbox } from 'e2b'
+# const sandbox = await Sandbox.create('react-native-node22')
+
+team_id = "01a786c4-356f-45e7-aa28-24415b5fbc77"
+dockerfile = "Dockerfile"
+template_name = "react-native-node22"
+template_id = "1gvmo3ai1lkjd0iwxznp"
