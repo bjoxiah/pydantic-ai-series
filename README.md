@@ -1,8 +1,15 @@
-# No Code AI Agent Builder
+# Part 3 — No Code AI Agent Builder
+
+[![Watch on YouTube](https://img.shields.io/badge/Watch-Part%203-red)](https://youtu.be/ILHtYme4O60)
+[![Series Overview](https://img.shields.io/badge/Series-Overview-blue)](https://github.com/bjoxiah/pydantic-ai-series)
+
+> Part of the **[Master Pydantic AI Series](https://github.com/bjoxiah/pydantic-ai-series)** — a hands-on series on building AI agents and agentic workflows with Pydantic AI.
+
+## No Code AI Agent Builder
 
 Build and configure AI agents without writing code. Create agents with custom capabilities — company knowledge (RAG + GraphRAG), web research, and email — then chat with them through a control panel or embed them as a widget on any website.
 
-Built with [Pydantic AI](https://pydantic.dev/docs/ai/) as part of the [Master Pydantic AI series](https://github.com/bjoxiah/pydantic-ai-series).
+Built with [Pydantic AI](https://ai.pydantic.dev) and [CopilotKit](https://docs.copilotkit.ai/pydantic-ai).
 
 ## Tech Stack
 
@@ -160,6 +167,14 @@ To also remove volumes (Postgres and Neo4j data):
 ```bash
 docker compose down -v
 ```
+## Series Navigation
+
+| Part | Topic | Video | Branch |
+|------|-------|-------|--------|
+| Part 1 | Foundation & AG-UI Protocol | [![Part 1](https://img.shields.io/badge/Watch-Part%201-red)](https://youtu.be/zgrGWLNnfqg) | [`intro-lessons`](https://github.com/bjoxiah/pydantic-ai-series/tree/intro-lessions) · [`ag-ui-protocol-lesson`](https://github.com/bjoxiah/pydantic-ai-series/tree/ag-ui-protocol-lesson) |
+| Part 2 | Multi-Agent Systems & Copilotkit | [![Part 2](https://img.shields.io/badge/Watch-Part%202-red)](https://youtu.be/rJrCAssCqpE) | [`multi-agent`](https://github.com/bjoxiah/pydantic-ai-series/tree/multi-agent) |
+| **Part 3** | **No Code AI Agent Builder** | [![Part 3](https://img.shields.io/badge/Watch-Part%203-red)](https://youtu.be/ILHtYme4O60) | **← you are here** |
+
 ## License
 
 MIT
