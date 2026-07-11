@@ -2,7 +2,6 @@
 
 import { useEffect, type ReactNode } from "react";
 import { AppStoreProvider, useAppStore } from "@/providers/app-store-provider";
-import { QueryProvider } from "@/providers/query-provider";
 import { KindeProvider, useKindeBrowserClient } from "@kinde-oss/kinde-auth-nextjs";
 import { api } from "@/lib/api";
 
@@ -53,13 +52,11 @@ function ProfileSync() {
 export function Providers({ children }: { children: ReactNode }) {
   return (
     <KindeProvider>
-      <QueryProvider>
-        <AppStoreProvider>
-          <ThemeWatcher />
-          <ProfileSync />
-          {children}
-        </AppStoreProvider>
-      </QueryProvider>
+      <AppStoreProvider>
+        <ThemeWatcher />
+        <ProfileSync />
+        {children}
+      </AppStoreProvider>
     </KindeProvider>
   );
 }

@@ -1,5 +1,10 @@
+from pathlib import Path
+
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# backend/.env — two levels up from shared/settings.py
+_ENV_FILE = str(Path(__file__).parent.parent / ".env")
 
 
 class Settings(BaseSettings):
@@ -10,9 +15,10 @@ class Settings(BaseSettings):
     temporal_url: str = Field(alias="TEMPORAL_URL")
     database_url: str = Field(alias="DATABASE_URL")
     encryption_key: str = Field(alias="ENCRYPTION_KEY")
+    kinde_issuer_url: str = Field(alias="KINDE_ISSUER_URL")
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=_ENV_FILE,
         extra="ignore",
     )
 

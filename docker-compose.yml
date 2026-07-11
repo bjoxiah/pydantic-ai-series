@@ -98,11 +98,11 @@ services:
     ports:
       - "8080:8080"
 
-  # ── FastAPI + Worker ──────────────────────────────────────────────────────
+  # ── FastAPI API ───────────────────────────────────────────────────────────
   api:
     build:
       context: ./backend
-      dockerfile: Dockerfile
+      dockerfile: api/Dockerfile
     container_name: agent-api
     depends_on:
       postgres:
@@ -126,6 +126,31 @@ services:
       - ./backend:/app          # source code — hot reload
       - api_venv:/app/.venv     # venv as named volume — survives source mount
     command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+  # ── Temporal Worker ───────────────────────────────────────────────────────
+  worker:
+    build:
+      context: ./backend
+      dockerfile: worker/Dockerfile
+    container_name: agent-worker
+    depends_on:
+      postgres:
+        condition: service_healthy
+      temporal:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file:
+      - path: ./backend/.env
+        required: false
+    environment:
+      TEMPORAL_URL: temporal:7233
+      REDIS_URL: redis://redis:6379
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/app_db
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+    volumes:
+      - ./backend:/app
+      - api_venv:/app/.venv
 
   # ── Next.js frontend ─────────────────────────────────────────────────────
   frontend:

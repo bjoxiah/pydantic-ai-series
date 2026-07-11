@@ -25,10 +25,10 @@ export const api = {
   },
 
   runs: {
-    start: (prompt: string, userId: string, selectedModel: string, githubUrl?: string) =>
+    start: (prompt: string, selectedModel: string) =>
       request<{ project_id: string }>("/run", {
         method: "POST",
-        body: JSON.stringify({ prompt, user_id: userId, github_url: githubUrl ?? "", selected_model: selectedModel }),
+        body: JSON.stringify({ prompt, selected_model: selectedModel }),
       }),
     approvePlan: (project_id: string) =>
       request(`/projects/${project_id}/approve-plan`, { method: "POST" }),
@@ -49,8 +49,8 @@ export const api = {
   },
 
   settings: {
-    get: (userId: string) => request<UserSettings>(`/settings/${userId}`),
-    save: (s: { user_id: string } & Omit<UserSettings, "github_token_set">) =>
+    get: () => request<UserSettings>("/settings"),
+    save: (s: Omit<UserSettings, "github_token_set">) =>
       request<UserSettings>("/settings", {
         method: "POST",
         body: JSON.stringify(s),

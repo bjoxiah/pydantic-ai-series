@@ -73,10 +73,14 @@ async def get_project_by_workflow(
 
 async def list_projects(
     session: AsyncSession,
+    user_id: str,
     limit: int = 20,
 ) -> list[Project]:
     result = await session.exec(
-        select(Project).order_by(Project.created_at.desc()).limit(limit)
+        select(Project)
+        .where(Project.user_id == user_id)
+        .order_by(Project.created_at.desc())
+        .limit(limit)
     )
     return result.all()
 

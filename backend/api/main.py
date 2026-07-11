@@ -5,20 +5,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from temporalio.client import Client
-from temporalio.worker import Worker
-from temporalio.worker.workflow_sandbox import SandboxedWorkflowRunner, SandboxRestrictions
 from pydantic_ai.durable_exec.temporal import PydanticAIPlugin, LogfirePlugin
 
-from agent.workflow import AppBuildWorkflow
-from agent.activities import (
-    stream_progress,
-    create_sandbox,
-    serve_web_build,
-    save_plan,
-    set_build_started,
-    save_build_reasoning,
-    save_build_result,
-)
 from db.engine import run_migrations
 from redis_client import redis_client
 from router import router
@@ -49,31 +37,7 @@ async def lifespan(app: FastAPI):
     )
     app.state.temporal_client = temporal_client
 
-    async with Worker(
-        temporal_client,
-        task_queue="coding-agent",
-        workflows=[AppBuildWorkflow],
-        activities=[
-            stream_progress,
-            create_sandbox,
-            serve_web_build,
-            save_plan,
-            set_build_started,
-            save_build_reasoning,
-            save_build_result,
-        ],
-        workflow_runner=SandboxedWorkflowRunner(
-            restrictions=SandboxRestrictions.default.with_passthrough_modules(
-                "settings",
-                "pydantic_settings",
-                "pydantic_ai_skills",
-                "redis_client",
-                "streaming",
-                "db",
-            )
-        ),
-    ):
-        yield
+    yield
 
     await redis_client.aclose()
 

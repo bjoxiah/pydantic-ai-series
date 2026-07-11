@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 from e2b import AsyncSandbox
 from temporalio import activity
 
@@ -7,6 +8,12 @@ from db.engine import AsyncSessionLocal
 from db.queries import create_message, get_settings, save_agent_history, update_project
 
 _SERVE_PORT = 3000
+
+
+async def _heartbeat_loop(interval: float = 5.0) -> None:
+    while True:
+        activity.heartbeat()
+        await asyncio.sleep(interval)
 
 
 @activity.defn
@@ -25,20 +32,27 @@ async def create_sandbox(user_id: str) -> str:
             "Please configure them in Settings before running a build."
         )
 
-    sandbox = await AsyncSandbox.create(
-        template="react-native-node22",
-        timeout=3600,
-        envs={
-            "NODE_PATH": "/usr/local/lib/node_modules:/usr/lib/node_modules",
-            "GITHUB_USERNAME": user_settings.github_username,
-            "GITHUB_TOKEN": user_settings.github_token,
-            "GITHUB_EMAIL": user_settings.github_email,
-        },
-        lifecycle={
-            'on_timeout': 'pause',
-            'auto_resume': False
-        }
-    )
+    hb = asyncio.create_task(_heartbeat_loop())
+    try:
+        sandbox = await AsyncSandbox.create(
+            template="react-native-node22",
+            timeout=3600,
+            envs={
+                "NODE_PATH": "/usr/local/lib/node_modules:/usr/lib/node_modules",
+                "GITHUB_USERNAME": user_settings.github_username,
+                "GITHUB_TOKEN": user_settings.github_token,
+                "GITHUB_EMAIL": user_settings.github_email,
+            },
+            lifecycle={
+                'on_timeout': 'pause',
+                'auto_resume': False
+            }
+        )
+    finally:
+        hb.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await hb
+
     return sandbox.sandbox_id
 
 
@@ -46,23 +60,29 @@ async def create_sandbox(user_id: str) -> str:
 async def serve_web_build(sandbox_id: str, project_path: str, app_name: str) -> dict:
     sandbox = await AsyncSandbox.connect(sandbox_id)
 
-    export_proc = await sandbox.commands.run(
-        "npx expo export --platform web",
-        cwd=project_path,
-        timeout=0,
-        background=True,
-    )
-    export_result = await export_proc.wait()
-    if export_result.exit_code != 0:
-        raise RuntimeError(f"expo export failed:\n{export_result.stderr[-1000:]}")
+    hb = asyncio.create_task(_heartbeat_loop())
+    try:
+        export_proc = await sandbox.commands.run(
+            "npx expo export --platform web",
+            cwd=project_path,
+            timeout=0,
+            background=True,
+        )
+        export_result = await export_proc.wait()
+        if export_result.exit_code != 0:
+            raise RuntimeError(f"expo export failed:\n{export_result.stderr[-1000:]}")
 
-    await sandbox.commands.run(
-        f"serve ./dist -p {_SERVE_PORT} --single",
-        cwd=project_path,
-        timeout=0,
-        background=True,
-    )
-    await asyncio.sleep(2)
+        await sandbox.commands.run(
+            f"serve ./dist -p {_SERVE_PORT} --single",
+            cwd=project_path,
+            timeout=0,
+            background=True,
+        )
+        await asyncio.sleep(2)
+    finally:
+        hb.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await hb
 
     return {"preview_url": f"https://{sandbox.get_host(_SERVE_PORT)}", "app_name": app_name}
 

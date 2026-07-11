@@ -1,6 +1,9 @@
+import asyncio
+import contextlib
 import json
 import time
 
+from temporalio import activity
 from redis_client import redis_client
 from pydantic_ai.messages import (
     AgentStreamEvent,
@@ -38,6 +41,15 @@ async def _buffer_event(project_id: str, event: dict) -> None:
         await pipe.execute()
 
 
+async def _heartbeat_loop(interval: float = 5.0) -> None:
+    """Sends Temporal activity heartbeats on a fixed interval.
+    Run as a background task so long-running operations don't miss heartbeats.
+    """
+    while True:
+        activity.heartbeat()
+        await asyncio.sleep(interval)
+
+
 def make_event_stream_handler():
     async def handler(ctx, stream) -> None:
         project_id = getattr(ctx.deps, "project_id", None)
@@ -45,6 +57,11 @@ def make_event_stream_handler():
             async for _ in stream:
                 pass
             return
+
+        # Background heartbeat keeps Temporal informed even between LLM tokens.
+        # Without this, a long tool call or slow model response could exceed
+        # heartbeat_timeout and cause a spurious activity failure.
+        hb = asyncio.create_task(_heartbeat_loop())
 
         text_buffer = ""
         last_flush = time.monotonic()
@@ -58,28 +75,33 @@ def make_event_stream_handler():
                 text_buffer = ""
             last_flush = time.monotonic()
 
-        async for event in stream:
-            if isinstance(event, PartDeltaEvent) and isinstance(event.delta, TextPartDelta):
-                text_buffer += event.delta.content_delta
-                if (time.monotonic() - last_flush >= _TEXT_FLUSH_INTERVAL
-                        or len(text_buffer) >= _TEXT_FLUSH_MAX):
+        try:
+            async for event in stream:
+                if isinstance(event, PartDeltaEvent) and isinstance(event.delta, TextPartDelta):
+                    text_buffer += event.delta.content_delta
+                    if (time.monotonic() - last_flush >= _TEXT_FLUSH_INTERVAL
+                            or len(text_buffer) >= _TEXT_FLUSH_MAX):
+                        await flush_text()
+
+                elif isinstance(event, OutputToolCallEvent):
                     await flush_text()
+                    data = {"type": "agent_output", "output": event.part.args_as_dict()}
+                    await publish_event(project_id, data)
+                    await _buffer_event(project_id, data)
 
-            elif isinstance(event, OutputToolCallEvent):
-                await flush_text()
-                data = {"type": "agent_output", "output": event.part.args_as_dict()}
-                await publish_event(project_id, data)
-                await _buffer_event(project_id, data)
+                else:
+                    await flush_text()
+                    serialized = _serialize_event(event)
+                    if serialized:
+                        await publish_event(project_id, serialized)
+                        await _buffer_event(project_id, serialized)
 
-            else:
-                await flush_text()
-                serialized = _serialize_event(event)
-                if serialized:
-                    await publish_event(project_id, serialized)
-                    await _buffer_event(project_id, serialized)
-
-        await flush_text()
-        await publish_event(project_id, {"type": "agent_done"})
+            await flush_text()
+            await publish_event(project_id, {"type": "agent_done"})
+        finally:
+            hb.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await hb
 
     return handler
 

@@ -38,6 +38,10 @@ def _usage_dict(result) -> dict | None:
 
 _agent_config = ActivityConfig(
     start_to_close_timeout=timedelta(minutes=10),
+    # If the worker dies, heartbeats stop. Temporal detects failure within this window
+    # instead of waiting out the full start_to_close_timeout (10 min).
+    # The streaming handler sends a heartbeat every 5s, so 30s gives 6x headroom.
+    heartbeat_timeout=timedelta(seconds=30),
     retry_policy=RetryPolicy(maximum_attempts=3, initial_interval=timedelta(seconds=3)),
 )
 
@@ -48,6 +52,7 @@ SUPPORTED_MODELS = {
     for name in [
         "google/gemini-3-flash-preview",
         "anthropic/claude-fable-5",
+        "anthropic/claude-opus-4.7",
         "anthropic/claude-opus-4.8",
         "deepseek/deepseek-v4-pro",
         "openai/gpt-5.5",
@@ -61,7 +66,7 @@ temporal_planner_agent = TemporalAgent(
     wrapped=planner_agent,
     models=SUPPORTED_MODELS,
     event_stream_handler=make_event_stream_handler(),
-    activity_config=_agent_config,
+    activity_config=_agent_config
 )
 temporal_engineering_agent = TemporalAgent(
     wrapped=engineering_agent,
@@ -178,9 +183,11 @@ class AppBuildWorkflow(PydanticAIWorkflow):
 
         self._status = "building"
         sandbox_id = await workflow.execute_activity(
-            create_sandbox, 
+            create_sandbox,
             args=[deps.user_id],
             schedule_to_close_timeout=timedelta(minutes=2),
+            heartbeat_timeout=timedelta(seconds=30),
+            retry_policy=_activity_retry,
         )
         self._sandbox_id = sandbox_id
         deps.sandbox_id = sandbox_id
@@ -244,9 +251,10 @@ class AppBuildWorkflow(PydanticAIWorkflow):
 
         try:
             serve_res = await workflow.execute_activity(
-                serve_web_build, 
+                serve_web_build,
                 args=[sandbox_id, project_path, app_name],
                 schedule_to_close_timeout=timedelta(minutes=10),
+                heartbeat_timeout=timedelta(seconds=30),
                 retry_policy=_activity_retry,
             )
             self._preview_url = serve_res.get("preview_url", "")

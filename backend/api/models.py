@@ -6,8 +6,6 @@ from typing import Any, Literal
 
 class RunRequest(BaseModel):
     prompt: str
-    user_id: str
-    github_url: str = ""
     selected_model: str = "openai/gpt-5.5"
 
 
@@ -20,7 +18,6 @@ class ProfileSyncRequest(BaseModel):
 
 
 class SettingsRequest(BaseModel):
-    user_id: str
     github_token: str = ""
     github_username: str = ""
     github_email: str = ""

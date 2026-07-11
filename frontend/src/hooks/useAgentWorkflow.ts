@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useCallback, useRef } from "react";
-import { useKindeBrowserClient } from "@kinde-oss/kinde-auth-nextjs";
 import { useAppStore } from "@/providers/app-store-provider";
 import { api, type AgentEvent, type MessageRow, type WorkflowStatus } from "@/lib/api";
 
@@ -14,6 +13,10 @@ export type GateState =
   | { type: "plan" }
   | { type: "complete"; preview_url: string; github_url: string; pr_url: string }
   | null;
+
+export type ConnectionState = "connected" | "disconnected" | "reconnecting";
+
+const ACTIVE_STATUSES = ["planning", "building", "revising_plan", "publishing"];
 
 function deriveGate(status: WorkflowStatus | null): GateState {
   if (!status) return null;
@@ -37,11 +40,17 @@ export function useAgentWorkflow() {
   const [messages, setMessages] = useState<MessageRow[]>([]);
   const [liveItems, setLiveItems] = useState<LiveItem[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
+  const [connectionState, setConnectionState] = useState<ConnectionState>("connected");
 
   const currentTextId = useRef<string | null>(null);
   const activeStreamId = useRef<string | null>(null);
   const pendingToolId = useRef<string | null>(null);
-
+  const streamRef = useRef<EventSource | null>(null);
+  // Set to true when WE close the stream (workflow done, reset, new connect).
+  // Prevents onerror from treating our own close as a server error.
+  const intentionallyClosedRef = useRef(false);
+  // Tracks that we've entered "disconnected" state so onopen knows it's a reconnect.
+  const wasDisconnectedRef = useRef(false);
 
   const appendOrMergeLiveText = useCallback((text: string) => {
     setLiveItems((prev) => {
@@ -61,7 +70,6 @@ export function useAgentWorkflow() {
   const breakTextRun = useCallback(() => {
     currentTextId.current = null;
   }, []);
-
 
   const fetchMessages = useCallback(async (id: string) => {
     const rows = await api.projects.messages(id);
@@ -90,120 +98,167 @@ export function useAgentWorkflow() {
     return data;
   }, [updateProject]);
 
+  // Intentional close — workflow reached a terminal/gate state, or user navigated away.
+  const closeStream = useCallback(() => {
+    intentionallyClosedRef.current = true;
+    streamRef.current?.close();
+    streamRef.current = null;
+    activeStreamId.current = null;
+    setIsStreaming(false);
+  }, []);
 
   const watchStream = useCallback(
-    async (id: string) => {
-      activeStreamId.current = id;
-      setIsStreaming(true);
+    (id: string) => {
+      // Tear down any previous stream without triggering the error path
+      streamRef.current?.close();
+      streamRef.current = null;
+      activeStreamId.current = null;
+      intentionallyClosedRef.current = false;
+      wasDisconnectedRef.current = false;
 
-      try {
-        const url = `/api/projects/${id}/stream`;
-        const res = await fetch(url);
-        if (!res.body) return;
+      // openEventSource is called on first connect and on every manual retry
+      const openEventSource = () => {
+        if (intentionallyClosedRef.current) return;
 
-        const reader = res.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = "";
+        const es = new EventSource(`/api/projects/${id}/stream`);
+        streamRef.current = es;
+        activeStreamId.current = id;
 
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          buffer += decoder.decode(value, { stream: true });
+        es.onopen = async () => {
+          if (!wasDisconnectedRef.current) {
+            // Initial connection — nothing special, just start showing events
+            setIsStreaming(true);
+            return;
+          }
 
-          const lines = buffer.split("\n\n");
-          buffer = lines.pop() ?? "";
+          // Reconnecting after a drop: sync whatever the DB has, then resume
+          wasDisconnectedRef.current = false;
+          setConnectionState("reconnecting");
 
-          for (const line of lines) {
-            if (!line.startsWith("data: ")) continue;
-            let event: AgentEvent;
-            try { event = JSON.parse(line.slice(6)); }
-            catch { continue; }
+          const project = await refreshStatus(id).catch(() => null);
+          await fetchMessages(id).catch(() => {});
 
-            if (event.type === "text_delta") {
-              appendOrMergeLiveText(event.text);
+          if (intentionallyClosedRef.current) return;
 
-            } else if (event.type === "tool_call") {
+          if (project && ACTIVE_STATUSES.includes(project.status)) {
+            setIsStreaming(true);
+            setConnectionState("connected");
+          } else {
+            // Workflow finished while we were offline
+            closeStream();
+            setConnectionState("connected");
+          }
+        };
+
+        es.onerror = () => {
+          if (intentionallyClosedRef.current) return;
+
+          // First time we see an error — surface the disconnected state
+          if (!wasDisconnectedRef.current) {
+            wasDisconnectedRef.current = true;
+            setConnectionState("disconnected");
+            setIsStreaming(false);
+          }
+
+          // EventSource spec: any HTTP error (5xx from the proxy while backend is down)
+          // causes a FATAL close — readyState goes to CLOSED and the browser stops retrying.
+          // We detect that here and manually schedule a new openEventSource() call.
+          // If readyState is CONNECTING the browser is already retrying — leave it alone.
+          if (es.readyState === EventSource.CLOSED) {
+            streamRef.current = null;
+            activeStreamId.current = null;
+            setTimeout(openEventSource, 3000);
+          }
+        };
+
+        es.onmessage = async (e: MessageEvent) => {
+          let event: AgentEvent;
+          try { event = JSON.parse(e.data); }
+          catch { return; }
+
+          if (event.type === "text_delta") {
+            appendOrMergeLiveText(event.text);
+
+          } else if (event.type === "tool_call") {
+            breakTextRun();
+            const toolId = `tool-${Date.now()}-${Math.random()}`;
+            pendingToolId.current = toolId;
+            setLiveItems((prev) => [
+              ...prev,
+              { kind: "live_tool", id: toolId, tool_name: event.tool_name, args: event.args },
+            ]);
+
+          } else if (event.type === "tool_result") {
+            breakTextRun();
+            const tid = pendingToolId.current;
+            pendingToolId.current = null;
+            if (tid) {
+              setLiveItems((prev) =>
+                prev.map((item) =>
+                  item.id === tid && item.kind === "live_tool"
+                    ? { ...item, result: event.content }
+                    : item
+                )
+              );
+            }
+
+          } else if (event.type === "node_change") {
+            breakTextRun();
+
+            if (event.node === "awaiting_plan_approval" || event.node === "complete") {
+              // Workflow paused or done — close stream so it stops trying to reconnect
+              closeStream();
+              await fetchMessages(id);
+              await refreshStatus(id);
+            } else {
+              setLiveItems((prev) => {
+                const filtered = prev.filter((i) => i.kind !== "live_node");
+                return [...filtered, { kind: "live_node", id: `node-${event.node}`, node: event.node }];
+              });
+            }
+
+          } else if (event.type === "agent_output") {
+            const brief = event.output?.brief as string | undefined;
+            const projectName = event.output?.project_name as string | undefined;
+            if (projectName && brief) {
               breakTextRun();
-              const id_ = `tool-${Date.now()}-${Math.random()}`;
-              pendingToolId.current = id_;
-              setLiveItems((prev) => [
-                ...prev,
-                { kind: "live_tool", id: id_, tool_name: event.tool_name, args: event.args },
-              ]);
-
-            } else if (event.type === "tool_result") {
-              breakTextRun();
-              const tid = pendingToolId.current;
-              pendingToolId.current = null;
-              if (tid) {
-                setLiveItems((prev) =>
-                  prev.map((item) =>
-                    item.id === tid && item.kind === "live_tool"
-                      ? { ...item, result: event.content }
-                      : item
-                  )
-                );
-              }
-
-            } else if (event.type === "node_change") {
-              breakTextRun();
-
-              if (event.node === "awaiting_plan_approval" || event.node === "complete") {
-                await fetchMessages(id);
-                await refreshStatus(id);
-              } else {
-                setLiveItems((prev) => {
-                  const filtered = prev.filter((i) => i.kind !== "live_node");
-                  return [...filtered, { kind: "live_node", id: `node-${event.node}`, node: event.node }];
-                });
-              }
-
-            } else if (event.type === "agent_output") {
-              const brief = event.output?.brief as string | undefined;
-              const projectName = event.output?.project_name as string | undefined;
-              if (projectName && brief) {
-                breakTextRun();
-                updateProject(id, { title: projectName, plan: brief, status: "awaiting_plan_approval" });
-                setStatus((prev) => ({
-                  project_id: prev?.project_id ?? id,
-                  status: "awaiting_plan_approval",
-                  project_name: projectName,
-                  brief,
-                  preview_url: prev?.preview_url ?? "",
-                  github_url: prev?.github_url ?? "",
-                  pr_url: prev?.pr_url ?? "",
-                  total_tokens: prev?.total_tokens ?? 0,
-                }));
-              }
-
+              updateProject(id, { title: projectName, plan: brief, status: "awaiting_plan_approval" });
+              setStatus((prev) => ({
+                project_id: prev?.project_id ?? id,
+                status: "awaiting_plan_approval",
+                project_name: projectName,
+                brief,
+                preview_url: prev?.preview_url ?? "",
+                github_url: prev?.github_url ?? "",
+                pr_url: prev?.pr_url ?? "",
+                total_tokens: prev?.total_tokens ?? 0,
+              }));
             }
           }
-        }
-      } finally {
-        setIsStreaming(false);
-        activeStreamId.current = null;
-      }
+        };
+      };
+
+      openEventSource();
     },
-    [appendOrMergeLiveText, breakTextRun, fetchMessages, refreshStatus, updateProject]
+    [appendOrMergeLiveText, breakTextRun, closeStream, fetchMessages, refreshStatus, updateProject]
   );
 
-
-  const { user } = useKindeBrowserClient();
-
-  const createWorkflow = useCallback(async (prompt: string, selectedModel: string, githubUrl?: string) => {
-    const data = await api.runs.start(prompt, user?.id ?? "", selectedModel, githubUrl);
+  const createWorkflow = useCallback(async (prompt: string, selectedModel: string) => {
+    const data = await api.runs.start(prompt, selectedModel);
     return data.project_id;
-  }, [user?.id]);
+  }, []);
 
   const connect = useCallback(
     async (id: string) => {
+      closeStream();
+
       setProjectId(id);
       setStatus(null);
       setMessages([]);
       setLiveItems([]);
       setIsStreaming(false);
+      setConnectionState("connected");
       currentTextId.current = null;
-      activeStreamId.current = null;
       pendingToolId.current = null;
 
       const [project, msgs] = await Promise.all([
@@ -230,26 +285,26 @@ export function useAgentWorkflow() {
 
       setMessages(msgs);
 
-      const activeStatuses = ["planning", "building", "revising_plan", "publishing"];
-      if (!project || !activeStatuses.includes(project.status)) {
+      if (!project || !ACTIVE_STATUSES.includes(project.status)) {
         return;
       }
 
-      await watchStream(id);
+      watchStream(id);
     },
-    [watchStream, updateProject]
+    [watchStream, closeStream, updateProject]
   );
 
   const reset = useCallback(() => {
+    closeStream();
     setProjectId(null);
     setMessages([]);
     setLiveItems([]);
     setStatus(null);
     setIsStreaming(false);
+    setConnectionState("connected");
     currentTextId.current = null;
-    activeStreamId.current = null;
     pendingToolId.current = null;
-  }, []);
+  }, [closeStream]);
 
   const signal = useCallback(
     async (action: string, feedback?: string) => {
@@ -274,6 +329,7 @@ export function useAgentWorkflow() {
     messages,
     liveItems,
     isStreaming,
+    connectionState,
     createWorkflow,
     connect,
     reset,

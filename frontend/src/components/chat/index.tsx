@@ -28,10 +28,11 @@ import { LiveToolRow } from "./ToolRow";
 import { EmptyState } from "./EmptyState";
 import { PromptBox, DEFAULT_MODEL } from "./PromptBox";
 import { PreviewPanel } from "./PreviewPanel";
+import { ConnectionBanner } from "./ConnectionBanner";
 
 export function ChatComponent({ initialId }: { initialId?: string } = {}) {
   const {
-    projectId, status, gate, messages, liveItems, isStreaming,
+    projectId, status, gate, messages, liveItems, isStreaming, connectionState,
     createWorkflow, connect, reset, signal,
   } = useAgentWorkflow();
 
@@ -155,6 +156,8 @@ export function ChatComponent({ initialId }: { initialId?: string } = {}) {
                     </Badge>
                   ) : null}
                 </header>
+
+                <ConnectionBanner state={connectionState} />
 
                 <div className="flex-1 overflow-y-auto">
                   {isEmpty ? (

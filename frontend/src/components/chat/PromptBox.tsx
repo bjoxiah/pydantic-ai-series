@@ -7,6 +7,7 @@ const MODELS = [
   { value: "google/gemini-3-flash-preview", label: "Gemini 3 Flash",  provider: "Google" },
   { value: "anthropic/claude-fable-5",      label: "Claude Fable 5",  provider: "Anthropic" },
   { value: "anthropic/claude-opus-4.8",     label: "Claude Opus 4.8", provider: "Anthropic" },
+  { value: "anthropic/claude-opus-4.7",     label: "Claude Opus 4.7", provider: "Anthropic" },
   { value: "deepseek/deepseek-v4-pro",      label: "DeepSeek V4 Pro", provider: "DeepSeek" },
   { value: "openai/gpt-5.5",                label: "GPT-5.5",         provider: "OpenAI" },
   { value: "openai/gpt-4.1-mini",           label: "GPT-4.1 Mini",    provider: "OpenAI" },

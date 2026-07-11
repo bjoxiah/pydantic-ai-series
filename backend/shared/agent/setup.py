@@ -4,14 +4,13 @@ from pydantic_ai.models.openrouter import OpenRouterModel
 from pydantic_ai.providers.openrouter import OpenRouterProvider
 from settings import settings
 
-DEFAULT_MODEL = "openai/gpt-5.2-codex"
+DEFAULT_MODEL = "openai/gpt-5.5"
 
 @dataclass
 class CodingDeps:
     sandbox_id: str = ""
     project_id: str = ""
     user_id: str = ""
-    github_url: str = ""
     message_sequence: int = 0
     model_name: str = DEFAULT_MODEL
     

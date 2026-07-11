@@ -10,7 +10,7 @@ from sqlmodel import SQLModel
 # Load .env for local development
 try:
     from dotenv import load_dotenv
-    load_dotenv(Path(__file__).parent.parent / ".env")
+    load_dotenv(Path(__file__).parent.parent.parent / ".env")
 except ImportError:
     pass
 

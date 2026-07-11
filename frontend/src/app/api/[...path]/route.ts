@@ -1,3 +1,5 @@
+import { getKindeServerSession } from "@kinde-oss/kinde-auth-nextjs/server";
+
 const BACKEND = process.env.BACKEND_URL ?? "http://localhost:8000";
 
 async function proxy(req: Request, params: Promise<{ path: string[] }>) {
@@ -5,9 +7,12 @@ async function proxy(req: Request, params: Promise<{ path: string[] }>) {
   const { search } = new URL(req.url);
   const url = `${BACKEND}/${path.join("/")}${search}`;
 
+  const token = await getKindeServerSession().getAccessTokenRaw();
+
   const headers = new Headers();
   const ct = req.headers.get("content-type");
   if (ct) headers.set("content-type", ct);
+  if (token) headers.set("authorization", `Bearer ${token}`);
 
   const hasBody = req.method !== "GET" && req.method !== "HEAD";
 

@@ -2,12 +2,13 @@ import asyncio
 import json
 import uuid
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from e2b import AsyncSandbox
 
 from agent.setup import CodingDeps
 from agent.workflow import AppBuildWorkflow
+from auth import get_current_user
 from models import (
     HealthResponse, MessageResponse, ProfileResponse, ProfileSyncRequest,
     ProjectDetailResponse, ProjectSummaryResponse, RunRequest, RunResponse,
@@ -24,12 +25,25 @@ from redis_client import redis_client
 router = APIRouter()
 
 
+async def _get_owned_project(session, project_id: str, user_id: str):
+    project = await get_project(session, project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    if project.user_id != user_id:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    return project
+
+
 # ── Workflow ──────────────────────────────────────────────────────────────────
 
 @router.post("/run", response_model=RunResponse, summary="Start a new agent build workflow")
-async def run_agent(request: Request, body: RunRequest):
+async def run_agent(
+    request: Request,
+    body: RunRequest,
+    user_id: str = Depends(get_current_user),
+):
     async with AsyncSessionLocal() as session:
-        user_settings = await get_settings(session, body.user_id)
+        user_settings = await get_settings(session, user_id)
 
     missing: list[str] = []
     if not user_settings or not user_settings.github_token:
@@ -49,7 +63,7 @@ async def run_agent(request: Request, body: RunRequest):
     temporal_workflow_id = f"app-build-{uuid.uuid4()}"
 
     async with AsyncSessionLocal() as session:
-        project = await create_project(session, temporal_workflow_id, body.prompt, body.user_id, body.selected_model)
+        project = await create_project(session, temporal_workflow_id, body.prompt, user_id, body.selected_model)
         project_id = str(project.id)
         await create_message(
             session,
@@ -62,8 +76,7 @@ async def run_agent(request: Request, body: RunRequest):
         )
 
     deps = CodingDeps(
-        user_id=body.user_id,
-        github_url=body.github_url,
+        user_id=user_id,
         project_id=project_id,
         model_name=body.selected_model,
     )
@@ -76,7 +89,6 @@ async def run_agent(request: Request, body: RunRequest):
     return RunResponse(project_id=project_id)
 
 
-
 # ── Projects ──────────────────────────────────────────────────────────────────
 
 @router.get(
@@ -84,9 +96,9 @@ async def run_agent(request: Request, body: RunRequest):
     response_model=list[ProjectSummaryResponse],
     summary="List recent projects for the sidebar",
 )
-async def get_projects():
+async def get_projects(user_id: str = Depends(get_current_user)):
     async with AsyncSessionLocal() as session:
-        projects = await list_projects(session, limit=20)
+        projects = await list_projects(session, user_id=user_id, limit=20)
     return [
         ProjectSummaryResponse(
             project_id=str(p.id),
@@ -104,7 +116,10 @@ async def get_projects():
     summary="SSE stream of agent events for a project",
     responses={200: {"content": {"text/event-stream": {}}, "description": "Server-sent events"}},
 )
-async def stream_phase(project_id: str):
+async def stream_phase(project_id: str, user_id: str = Depends(get_current_user)):
+    async with AsyncSessionLocal() as session:
+        await _get_owned_project(session, project_id, user_id)
+
     async def event_generator():
         pubsub = redis_client.pubsub()
         await pubsub.subscribe(f"agent-events:{project_id}")
@@ -130,7 +145,6 @@ async def stream_phase(project_id: str):
         headers={
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
-            "Access-Control-Allow-Origin": "*",
             "X-Accel-Buffering": "no",
         },
     )
@@ -142,11 +156,9 @@ async def stream_phase(project_id: str):
     summary="Get project metadata and status",
     responses={404: {"description": "Project not found"}},
 )
-async def get_project_detail(project_id: str):
+async def get_project_detail(project_id: str, user_id: str = Depends(get_current_user)):
     async with AsyncSessionLocal() as session:
-        project = await get_project(session, project_id)
-        if not project:
-            raise HTTPException(status_code=404, detail="Project not found")
+        project = await _get_owned_project(session, project_id, user_id)
         total_tokens = await get_project_total_tokens(session, project_id)
 
     if project.sandbox_id and project.status == "complete":
@@ -172,11 +184,9 @@ async def get_project_detail(project_id: str):
     summary="Get the full conversation thread for a project",
     responses={404: {"description": "Project not found"}},
 )
-async def get_project_messages(project_id: str):
+async def get_project_messages(project_id: str, user_id: str = Depends(get_current_user)):
     async with AsyncSessionLocal() as session:
-        project = await get_project(session, project_id)
-        if not project:
-            raise HTTPException(status_code=404, detail="Project not found")
+        await _get_owned_project(session, project_id, user_id)
         messages = await get_messages(session, project_id)
 
     return [
@@ -199,11 +209,13 @@ async def get_project_messages(project_id: str):
     response_model=SignalResponse,
     summary="Approve the generated plan and start building",
 )
-async def approve_plan(request: Request, project_id: str):
+async def approve_plan(
+    request: Request,
+    project_id: str,
+    user_id: str = Depends(get_current_user),
+):
     async with AsyncSessionLocal() as session:
-        project = await get_project(session, project_id)
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+        project = await _get_owned_project(session, project_id, user_id)
     tc = request.app.state.temporal_client
     handle = tc.get_workflow_handle(project.workflow_id)
     await handle.signal(AppBuildWorkflow.approve_plan)
@@ -215,11 +227,14 @@ async def approve_plan(request: Request, project_id: str):
     response_model=SignalResponse,
     summary="Reject the plan and request a revision",
 )
-async def reject_plan(request: Request, project_id: str, feedback: str = ""):
+async def reject_plan(
+    request: Request,
+    project_id: str,
+    feedback: str = "",
+    user_id: str = Depends(get_current_user),
+):
     async with AsyncSessionLocal() as session:
-        project = await get_project(session, project_id)
-        if not project:
-            raise HTTPException(status_code=404, detail="Project not found")
+        project = await _get_owned_project(session, project_id, user_id)
         tc = request.app.state.temporal_client
         handle = tc.get_workflow_handle(project.workflow_id)
         await handle.signal(AppBuildWorkflow.reject_plan, feedback)
@@ -243,10 +258,14 @@ async def reject_plan(request: Request, project_id: str, feedback: str = ""):
     status_code=204,
     summary="Delete a project and terminate any running workflow",
 )
-async def delete_project_endpoint(request: Request, project_id: str):
+async def delete_project_endpoint(
+    request: Request,
+    project_id: str,
+    user_id: str = Depends(get_current_user),
+):
     async with AsyncSessionLocal() as session:
-        project = await get_project(session, project_id)
-        temporal_wf_id = project.workflow_id if project else None
+        project = await _get_owned_project(session, project_id, user_id)
+        temporal_wf_id = project.workflow_id
         await delete_project(session, project_id)
     if temporal_wf_id:
         tc = request.app.state.temporal_client
@@ -287,9 +306,9 @@ async def sync_profile(body: ProfileSyncRequest):
     response_model=ProfileResponse,
     summary="Get profile by Kinde user ID",
 )
-async def get_profile_endpoint(id: str):
+async def get_profile_endpoint(kinde_id: str):
     async with AsyncSessionLocal() as session:
-        profile = await get_profile(session, id)
+        profile = await get_profile(session, kinde_id)
     if not profile:
         raise HTTPException(status_code=404, detail="Profile not found")
     return ProfileResponse(
@@ -304,11 +323,11 @@ async def get_profile_endpoint(id: str):
 # ── Settings ──────────────────────────────────────────────────────────────────
 
 @router.get(
-    "/settings/{user_id}",
+    "/settings",
     response_model=SettingsResponse,
-    summary="Get GitHub integration settings for a user",
+    summary="Get GitHub integration settings for the current user",
 )
-async def read_settings(user_id: str):
+async def read_settings(user_id: str = Depends(get_current_user)):
     async with AsyncSessionLocal() as session:
         cfg = await get_settings(session, user_id)
     if not cfg:
@@ -326,11 +345,14 @@ async def read_settings(user_id: str):
     response_model=SettingsResponse,
     summary="Save GitHub integration settings for a user",
 )
-async def save_settings(body: SettingsRequest):
+async def save_settings(
+    body: SettingsRequest,
+    user_id: str = Depends(get_current_user),
+):
     async with AsyncSessionLocal() as session:
         cfg = await upsert_settings(
             session,
-            user_id=body.user_id,
+            user_id=user_id,
             github_token=body.github_token,
             github_username=body.github_username,
             github_email=body.github_email,
