@@ -150,7 +150,7 @@ services:
       ENCRYPTION_KEY: ${ENCRYPTION_KEY}
     volumes:
       - ./backend:/app
-      - api_venv:/app/.venv
+      - worker_venv:/app/.venv
 
   # ── Next.js frontend ─────────────────────────────────────────────────────
   frontend:
@@ -175,3 +175,4 @@ volumes:
   redisinsight_data:
   pgadmin_data:
   api_venv:
+  worker_venv:
