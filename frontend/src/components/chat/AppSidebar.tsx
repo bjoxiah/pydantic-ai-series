@@ -60,7 +60,7 @@ export function AppSidebar({ onNew, onSettings, projects, onOpen, onDelete, curr
                 <SidebarMenuItem key={p.project_id}>
                   <SidebarMenuButton onClick={() => onOpen(p.project_id)} isActive={isActive}
                     className={cn(
-                      "h-8 gap-2 pl-3 rounded-lg text-sm group relative",
+                      "h-8 gap-2 pl-3 rounded-lg text-sm group relative cursor-pointer",
                       isActive ? "bg-violet-600/10 text-violet-600 dark:text-violet-400"
                                : "text-muted-foreground hover:text-foreground",
                     )}>
