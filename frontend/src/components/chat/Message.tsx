@@ -52,7 +52,7 @@ export function Message({
             <span className="ml-2 font-normal normal-case tracking-normal">· {formatTime(message.created_at)}</span>
           )}
         </p>
-        <div className="prose prose-sm max-w-none text-sm leading-relaxed text-muted-foreground [&_*]:text-muted-foreground [&_strong]:text-muted-foreground">
+        <div className="prose prose-sm max-w-none text-sm leading-relaxed text-muted-foreground **:text-muted-foreground [&_strong]:text-muted-foreground">
           <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
         </div>
       </div>

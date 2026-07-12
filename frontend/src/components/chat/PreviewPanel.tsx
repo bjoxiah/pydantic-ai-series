@@ -36,7 +36,7 @@ export function PreviewPanel({ gate }: { gate: GateState }) {
         {gate?.type !== "complete" && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 px-6 text-center">
             <Monitor className="size-7 text-muted-foreground" />
-            <p className="text-sm text-muted-foreground max-w-[160px] leading-relaxed">
+            <p className="text-sm text-muted-foreground max-w-40 leading-relaxed">
               Preview loads when the build completes.
             </p>
           </div>
@@ -47,11 +47,11 @@ export function PreviewPanel({ gate }: { gate: GateState }) {
             <div className="flex flex-col items-center gap-2">
               <Monitor className="size-6 text-muted-foreground" />
               <p className="text-sm font-medium text-foreground">Build complete</p>
-              <p className="text-xs text-muted-foreground max-w-[200px] leading-relaxed">
+              <p className="text-xs text-muted-foreground max-w-50 leading-relaxed">
                 Preview server failed to start. Code was pushed to GitHub successfully.
               </p>
             </div>
-            <div className="flex flex-col items-center gap-2 w-full max-w-[200px]">
+            <div className="flex flex-col items-center gap-2 w-full max-w-50">
               {gate.pr_url && (
                 <a href={gate.pr_url} target="_blank" rel="noopener noreferrer"
                   className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-xs font-semibold transition-colors">
