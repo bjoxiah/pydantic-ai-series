@@ -1,13 +1,32 @@
+import asyncio
+import contextlib
 from dataclasses import dataclass
 
 import httpx
 from e2b import AsyncSandbox, CommandExitException
 from pydantic_ai import FunctionToolset, RunContext
 from pydantic_ai.capabilities import AbstractCapability
+from temporalio import activity
 
 from agent.setup import CodingDeps
 from db.engine import AsyncSessionLocal
 from db.queries import get_settings
+
+
+async def _with_heartbeat(coro) -> any:
+    """Run coro while heartbeating Temporal every 5 s."""
+    async def _hb() -> None:
+        while True:
+            activity.heartbeat()
+            await asyncio.sleep(5)
+
+    hb = asyncio.create_task(_hb())
+    try:
+        return await coro
+    finally:
+        hb.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await hb
 
 
 # ── Sandbox git identity setup ────────────────────────────────────────────────
@@ -16,10 +35,10 @@ async def _setup_git_identity(sandbox: AsyncSandbox) -> None:
     """Set git global user identity from sandbox env vars. No credentials stored."""
     try:
         await sandbox.commands.run(
-            'git config --global user.name "Forge"', timeout=10,
+            'git config --global user.name "Forge"', timeout=0,
         )
         await sandbox.commands.run(
-            'git config --global user.email "$GITHUB_EMAIL"', timeout=10,
+            'git config --global user.email "$GITHUB_EMAIL"', timeout=0,
         )
     except Exception:
         pass  # non-fatal — identity can be set later
@@ -90,17 +109,10 @@ If any step fails with a clear error, fix and retry once — never skip.
             """Initialize git on main branch and set git identity."""
             sandbox = await AsyncSandbox.connect(ctx.deps.sandbox_id)
             try:
-                check = await sandbox.commands.run(
-                    "git rev-parse --is-inside-work-tree 2>/dev/null || echo NOT_GIT",
-                    cwd=project_path, timeout=15,
+                await sandbox.commands.run(
+                    "git init -b main 2>/dev/null || git checkout main 2>/dev/null || git branch -M main",
+                    cwd=project_path, timeout=0,
                 )
-                if "NOT_GIT" in check.stdout:
-                    await sandbox.commands.run("git init -b main", cwd=project_path, timeout=30)
-                else:
-                    await sandbox.commands.run(
-                        "git checkout main 2>/dev/null || git branch -M main",
-                        cwd=project_path, timeout=15,
-                    )
                 await _setup_git_identity(sandbox)
                 return f"Git initialised in {project_path}"
             except CommandExitException as e:
@@ -118,7 +130,7 @@ If any step fails with a clear error, fix and retry once — never skip.
                 await sandbox.commands.run(
                     f'git remote add origin "https://$GITHUB_USERNAME:$GITHUB_TOKEN@github.com/{gh_path}" 2>/dev/null'
                     f' || git remote set-url origin "https://$GITHUB_USERNAME:$GITHUB_TOKEN@github.com/{gh_path}"',
-                    cwd=project_path, timeout=15,
+                    cwd=project_path, timeout=0,
                 )
                 return "Remote origin set (authenticated)"
             except CommandExitException as e:
@@ -149,7 +161,7 @@ If any step fails with a clear error, fix and retry once — never skip.
             try:
                 await sandbox.commands.run(
                     f"git checkout -B {branch_name}",
-                    cwd=project_path, timeout=15,
+                    cwd=project_path, timeout=0,
                 )
                 return f"On branch: {branch_name}"
             except CommandExitException as e:
@@ -161,13 +173,16 @@ If any step fails with a clear error, fix and retry once — never skip.
         async def git_push(ctx: RunContext[CodingDeps], project_path: str, branch: str) -> str:
             """Push branch to origin using sandbox env var credentials. Always specify branch explicitly."""
             sandbox = await AsyncSandbox.connect(ctx.deps.sandbox_id)
-            result = await sandbox.commands.run(
-                f"git push --set-upstream origin {branch}",
-                cwd=project_path, timeout=120,
-            )
-            if result.exit_code != 0:
-                return f"Push failed: {result.stderr[:300]}"
-            return f"Pushed origin/{branch}"
+            try:
+                await _with_heartbeat(sandbox.commands.run(
+                    f"git push --set-upstream origin {branch}",
+                    cwd=project_path, timeout=0,
+                ))
+                return f"Pushed origin/{branch}"
+            except CommandExitException as e:
+                return f"Push failed (exit {e.exit_code}): {e.stderr or e.stdout or str(e)}"
+            except Exception as e:
+                return f"Push failed — {type(e).__name__}: {e}"
 
         @toolset.tool
         async def create_pull_request(
@@ -221,10 +236,10 @@ If any step fails with a clear error, fix and retry once — never skip.
             await _setup_git_identity(sandbox)
             gh_path = repo_url.removeprefix("https://github.com/")
             try:
-                result = await sandbox.commands.run(
+                result = await _with_heartbeat(sandbox.commands.run(
                     f'git clone "https://$GITHUB_USERNAME:$GITHUB_TOKEN@github.com/{gh_path}" {project_path}',
-                    timeout=120,
-                )
+                    timeout=0,
+                ))
                 if result.exit_code != 0:
                     return f"Error: clone failed (exit {result.exit_code}): {result.stderr[:300]}"
                 return f"Cloned {repo_url} → {project_path}"

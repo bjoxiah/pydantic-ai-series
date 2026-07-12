@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronRight, ChevronDown } from "lucide-react";
+import { ChevronRight, ChevronDown, Check, TriangleAlert, LoaderCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { type AgentEvent } from "@/lib/api";
 
@@ -20,6 +20,12 @@ export function ToolRow({ name, args, result }: {
     result.includes("MODULE_NOT_FOUND")
   );
 
+  const StatusIcon = result
+    ? hasError
+      ? <TriangleAlert className="size-3 shrink-0 text-amber-500" />
+      : <Check className="size-3.5 shrink-0 text-emerald-500 dark:text-emerald-400" />
+    : <LoaderCircle className="size-3 shrink-0 text-muted-foreground/60 animate-spin" />;
+
   return (
     <div className="font-mono text-xs">
       <button
@@ -29,14 +35,7 @@ export function ToolRow({ name, args, result }: {
         {open ? <ChevronDown className="size-3 shrink-0" /> : <ChevronRight className="size-3 shrink-0" />}
         <span className="text-violet-600 dark:text-violet-400 font-medium">{name}</span>
         {preview && <span className="truncate text-muted-foreground">{preview}</span>}
-        {result && (
-          <span className={cn(
-            "ml-auto shrink-0 font-sans text-[9px] uppercase tracking-wide font-semibold",
-            hasError ? "text-red-500" : "text-emerald-600 dark:text-emerald-400",
-          )}>
-            {hasError ? "error" : "done"}
-          </span>
-        )}
+        <span className="ml-auto">{StatusIcon}</span>
       </button>
       {open && (
         <div className="mt-1 ml-5 space-y-1">

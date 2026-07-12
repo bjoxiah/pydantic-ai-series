@@ -8,15 +8,6 @@ export function PreviewPanel({ gate }: { gate: GateState }) {
         <Monitor className="size-3.5 text-muted-foreground" />
         <span className="text-sm text-foreground">Preview</span>
 
-        {/* {gate?.type === "complete" && gate.preview_url && (
-          <div className="ml-3 flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-muted min-w-0 max-w-[180px]">
-            <span className="size-1.5 rounded-full bg-emerald-500 shrink-0" />
-            <span className="text-xs text-muted-foreground truncate font-mono">
-              {(() => { try { return new URL(gate.preview_url).hostname; } catch { return "preview"; } })()}
-            </span>
-          </div>
-        )} */}
-
         {gate?.type === "complete" && (
           <div className="ml-auto flex items-center gap-0.5">
             {gate.preview_url && (

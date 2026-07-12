@@ -110,11 +110,25 @@ def _serialize_event(event: AgentStreamEvent) -> dict | None:
     if isinstance(event, PartStartEvent):
         return {"type": "part_start", "part_kind": event.part.part_kind}
     if isinstance(event, FunctionToolCallEvent):
-        return {"type": "tool_call", "tool_name": event.part.tool_name, "args": event.part.args}
+        args = event.part.args
+        if isinstance(args, str):
+            try:
+                args = json.loads(args)
+            except (json.JSONDecodeError, ValueError):
+                args = {"_raw": args}
+        elif args is None:
+            args = {}
+        return {
+            "type": "tool_call",
+            "tool_call_id": event.part.tool_call_id,
+            "tool_name": event.part.tool_name,
+            "args": args,
+        }
     if isinstance(event, FunctionToolResultEvent):
         return {
             "type": "tool_result",
-            "tool_name": getattr(event.part, "tool_name", None),
+            "tool_call_id": event.part.tool_call_id,
+            "tool_name": event.part.tool_name,
             "content": str(event.part.content)[:500],
         }
     return None

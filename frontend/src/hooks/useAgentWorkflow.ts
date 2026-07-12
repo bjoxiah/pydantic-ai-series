@@ -44,7 +44,7 @@ export function useAgentWorkflow() {
 
   const currentTextId = useRef<string | null>(null);
   const activeStreamId = useRef<string | null>(null);
-  const pendingToolId = useRef<string | null>(null);
+  const pendingToolCalls = useRef<Map<string, string>>(new Map()); // tool_call_id → live item id
   const streamRef = useRef<EventSource | null>(null);
   // Set to true when WE close the stream (workflow done, reset, new connect).
   // Prevents onerror from treating our own close as a server error.
@@ -76,7 +76,7 @@ export function useAgentWorkflow() {
     setMessages(rows);
     setLiveItems([]);
     currentTextId.current = null;
-    pendingToolId.current = null;
+    pendingToolCalls.current.clear();
   }, []);
 
   const refreshStatus = useCallback(async (id: string) => {
@@ -181,21 +181,21 @@ export function useAgentWorkflow() {
 
           } else if (event.type === "tool_call") {
             breakTextRun();
-            const toolId = `tool-${Date.now()}-${Math.random()}`;
-            pendingToolId.current = toolId;
+            const liveId = `tool-${Date.now()}-${Math.random()}`;
+            pendingToolCalls.current.set(event.tool_call_id, liveId);
             setLiveItems((prev) => [
               ...prev,
-              { kind: "live_tool", id: toolId, tool_name: event.tool_name, args: event.args },
+              { kind: "live_tool", id: liveId, tool_name: event.tool_name, args: event.args },
             ]);
 
           } else if (event.type === "tool_result") {
             breakTextRun();
-            const tid = pendingToolId.current;
-            pendingToolId.current = null;
-            if (tid) {
+            const liveId = pendingToolCalls.current.get(event.tool_call_id);
+            if (liveId) {
+              pendingToolCalls.current.delete(event.tool_call_id);
               setLiveItems((prev) =>
                 prev.map((item) =>
-                  item.id === tid && item.kind === "live_tool"
+                  item.id === liveId && item.kind === "live_tool"
                     ? { ...item, result: event.content }
                     : item
                 )
@@ -259,7 +259,7 @@ export function useAgentWorkflow() {
       setIsStreaming(false);
       setConnectionState("connected");
       currentTextId.current = null;
-      pendingToolId.current = null;
+      pendingToolCalls.current.clear();
 
       const [project, msgs] = await Promise.all([
         api.projects.get(id).catch(() => null),
@@ -303,7 +303,7 @@ export function useAgentWorkflow() {
     setIsStreaming(false);
     setConnectionState("connected");
     currentTextId.current = null;
-    pendingToolId.current = null;
+    pendingToolCalls.current.clear();
   }, [closeStream]);
 
   const signal = useCallback(

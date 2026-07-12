@@ -18,17 +18,6 @@ class FileSystemCapability(AbstractCapability[CodingDeps]):
     def get_toolset(self) -> FunctionToolset:
         toolset = FunctionToolset(id=self.id)
 
-        async def check(sandbox: AsyncSandbox, path: str):
-            result = await sandbox.commands.run(
-                f"test -d {path} && echo EXISTS || echo MISSING",
-                timeout=10,
-            )
-            if "MISSING" in result.stdout:
-                return (
-                    f"Error: directory '{path}' does not exist. "
-                    "Check the project name and scaffold first if needed."
-                )
-
         @toolset.tool
         async def write_file(ctx: RunContext[CodingDeps], path: str, content: str) -> str:
             """Write a file to the sandbox"""
@@ -67,10 +56,6 @@ class FileSystemCapability(AbstractCapability[CodingDeps]):
             Example: find_file("*.sql") or find_file("migrations")"""
             sandbox = await AsyncSandbox.connect(ctx.deps.sandbox_id)
 
-            verify = await check(sandbox, search_root)
-            if verify is not None:
-                return verify
-
             try:
                 result = await sandbox.commands.run(
                     f"find {search_root} -name '{name_pattern}' "
@@ -91,10 +76,6 @@ class FileSystemCapability(AbstractCapability[CodingDeps]):
             Use recursive=True to get the full tree — useful after CLI commands
             that create files in unknown locations."""
             sandbox = await AsyncSandbox.connect(ctx.deps.sandbox_id)
-
-            verify = await check(sandbox, path)
-            if verify is not None:
-                return verify
 
             try:
                 if recursive:

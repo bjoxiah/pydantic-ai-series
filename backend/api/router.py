@@ -8,6 +8,7 @@ from e2b import AsyncSandbox
 
 from agent.setup import CodingDeps
 from agent.workflow import AppBuildWorkflow
+from agent.streaming import get_run_buffer
 from auth import get_current_user
 from models import (
     HealthResponse, MessageResponse, ProfileResponse, ProfileSyncRequest,
@@ -116,22 +117,44 @@ async def get_projects(user_id: str = Depends(get_current_user)):
     summary="SSE stream of agent events for a project",
     responses={200: {"content": {"text/event-stream": {}}, "description": "Server-sent events"}},
 )
-async def stream_phase(project_id: str, user_id: str = Depends(get_current_user)):
+async def stream_phase(project_id: str, request: Request, user_id: str = Depends(get_current_user)):
     async with AsyncSessionLocal() as session:
         await _get_owned_project(session, project_id, user_id)
 
+    raw_last = request.headers.get("last-event-id", "")
+    last_seq = int(raw_last) if raw_last.isdigit() else -1
+
     async def event_generator():
         pubsub = redis_client.pubsub()
+        # Subscribe before reading the buffer so no live events are missed.
         await pubsub.subscribe(f"agent-events:{project_id}")
         try:
+            # Replay buffered events for the current phase (empty between phases).
+            # Clients that reconnect see all events from the phase start.
+            buffered = await get_run_buffer(project_id)
+            seen: set[str] = set()
+            for seq, event_dict in enumerate(buffered):
+                data = json.dumps(event_dict)
+                seen.add(data)
+                if seq <= last_seq:
+                    continue
+                yield f"id: {seq}\ndata: {data}\n\n"
+
+            seq = len(buffered) - 1
             async for message in pubsub.listen():
                 if message["type"] != "message":
                     continue
                 data = message["data"]
-                yield f"data: {data}\n\n"
+                # Discard events already sent via buffer replay (race-window duplicates).
+                if data in seen:
+                    seen.discard(data)
+                    continue
+                seq += 1
+                yield f"id: {seq}\ndata: {data}\n\n"
                 try:
                     parsed = json.loads(data)
-                    if parsed.get("type") == "node_change" and parsed.get("node") == "complete":
+                    node = parsed.get("node") if parsed.get("type") == "node_change" else None
+                    if node in ("complete", "awaiting_plan_approval"):
                         break
                 except Exception:
                     pass

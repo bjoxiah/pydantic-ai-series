@@ -38,9 +38,6 @@ def _usage_dict(result) -> dict | None:
 
 _agent_config = ActivityConfig(
     start_to_close_timeout=timedelta(minutes=10),
-    # If the worker dies, heartbeats stop. Temporal detects failure within this window
-    # instead of waiting out the full start_to_close_timeout (10 min).
-    # The streaming handler sends a heartbeat every 5s, so 30s gives 6x headroom.
     heartbeat_timeout=timedelta(seconds=30),
     retry_policy=RetryPolicy(maximum_attempts=3, initial_interval=timedelta(seconds=3)),
 )

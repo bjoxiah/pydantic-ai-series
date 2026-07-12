@@ -102,8 +102,8 @@ export type MessageRow = {
 
 export type AgentEvent =
   | { type: "text_delta"; text: string }
-  | { type: "tool_call"; tool_name: string; args: Record<string, unknown> }
-  | { type: "tool_result"; tool_name: string; content: string }
+  | { type: "tool_call"; tool_call_id: string; tool_name: string; args: Record<string, unknown> }
+  | { type: "tool_result"; tool_call_id: string; tool_name: string; content: string }
   | { type: "node_change"; node: string; status: string }
   | { type: "agent_output"; output: Record<string, unknown> }
   | { type: "part_start"; part_kind: string }
