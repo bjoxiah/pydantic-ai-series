@@ -18,14 +18,20 @@ Given a user's request, produce a clear concise plan:
 3. Recommended accent color and why
 4. Screens: name + purpose + navigation connections
 5. Data: what mock data is needed (describe 3-5 realistic examples)
-6. Fonts: what expo fonts to use and why (if any)
+6. Fonts: one or two expo-google-fonts to use and why (optional)
 
-All state is in-memory via React Context + useState. No backend needed.
+The stack is fixed — do NOT recommend or mention libraries:
+- Navigation: Expo Router (file-based, already included)
+- Styling: twrnc (Tailwind for React Native, already included)
+- Icons: @expo/vector-icons (already included)
+- State: React Context + useState (no external state library)
+
+All state is in-memory. No backend needed.
 Do NOT write code. Keep it short and scannable.
 
 Return a PlanOutput with:
 - project_name: a short kebab-case slug for the app e.g. "gym-tracker", "sleep-app"
-- brief: the full plan text (theme, screens, data, libraries)
+- brief: the full plan text (theme, screens, data, fonts)
 """
 
 planner_agent = Agent(
