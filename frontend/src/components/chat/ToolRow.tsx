@@ -61,15 +61,19 @@ export function ToolRow({ name, args, result }: {
 export function ToolsDrawer({ events }: { events: AgentEvent[] }) {
   const [open, setOpen] = useState(false);
 
-  const paired = events.reduce<{ name: string; args: Record<string, unknown>; result?: string }[]>((acc, e) => {
+  type PairedTool = { id: string; name: string; args: Record<string, unknown>; result?: string };
+  const byId = new Map<string, PairedTool>();
+  const paired: PairedTool[] = [];
+  for (const e of events) {
     if (e.type === "tool_call") {
-      acc.push({ name: e.tool_name, args: e.args as Record<string, unknown> });
-    } else if (e.type === "tool_result" && acc.length > 0) {
-      const last = acc[acc.length - 1];
-      if (last.result === undefined) last.result = e.content;
+      const entry: PairedTool = { id: e.tool_call_id, name: e.tool_name, args: e.args as Record<string, unknown> };
+      byId.set(e.tool_call_id, entry);
+      paired.push(entry);
+    } else if (e.type === "tool_result") {
+      const entry = byId.get(e.tool_call_id);
+      if (entry) entry.result = e.content;
     }
-    return acc;
-  }, []);
+  }
 
   if (paired.length === 0) return null;
 
