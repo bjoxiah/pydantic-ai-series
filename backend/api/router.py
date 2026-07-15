@@ -1,10 +1,13 @@
 import asyncio
 import json
+import logging
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
+from sqlalchemy.ext.asyncio.session import AsyncSession
 from e2b import AsyncSandbox
+from temporalio.client import Client
 
 from agent.setup import CodingDeps
 from agent.workflow import AppBuildWorkflow
@@ -23,10 +26,20 @@ from db.queries import (
 )
 from redis_client import redis_client
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-async def _get_owned_project(session, project_id: str, user_id: str):
+async def get_session():
+    async with AsyncSessionLocal() as session:
+        yield session
+
+
+def get_temporal_client(request: Request) -> Client:
+    return request.app.state.temporal_client
+
+
+async def _get_owned_project(session: AsyncSession, project_id: str, user_id: str):
     project = await get_project(session, project_id)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
@@ -35,16 +48,37 @@ async def _get_owned_project(session, project_id: str, user_id: str):
     return project
 
 
+# ── Background task helper (prevents GC of fire-and-forget tasks) ─────────────
+
+_background_tasks: set[asyncio.Task] = set()
+
+
+def _fire_and_forget(coro, *, description: str) -> asyncio.Task:
+    task = asyncio.ensure_future(coro)
+    _background_tasks.add(task)
+
+    def _on_done(t: asyncio.Task):
+        _background_tasks.discard(t)
+        if t.cancelled():
+            return
+        exc = t.exception()
+        if exc:
+            logger.warning("Background task failed (%s): %s", description, exc)
+
+    task.add_done_callback(_on_done)
+    return task
+
+
 # ── Workflow ──────────────────────────────────────────────────────────────────
 
 @router.post("/run", response_model=RunResponse, summary="Start a new agent build workflow")
 async def run_agent(
-    request: Request,
     body: RunRequest,
     user_id: str = Depends(get_current_user),
+    temporal_client: Client = Depends(get_temporal_client),
+    session: AsyncSession = Depends(get_session),
 ):
-    async with AsyncSessionLocal() as session:
-        user_settings = await get_settings(session, user_id)
+    user_settings = await get_settings(session, user_id)
 
     missing: list[str] = []
     if not user_settings or not user_settings.github_token:
@@ -60,28 +94,26 @@ async def run_agent(
             detail=f"Missing GitHub credentials: {', '.join(missing)}. Please configure them in Settings before building.",
         )
 
-    tc = request.app.state.temporal_client
     temporal_workflow_id = f"app-build-{uuid.uuid4()}"
 
-    async with AsyncSessionLocal() as session:
-        project = await create_project(session, temporal_workflow_id, body.prompt, user_id, body.selected_model)
-        project_id = str(project.id)
-        await create_message(
-            session,
-            project_id=project_id,
-            type="user",
-            content=body.prompt,
-            events=[],
-            agent_name=None,
-            sequence=0,
-        )
+    project = await create_project(session, temporal_workflow_id, body.prompt, user_id, body.selected_model)
+    project_id = str(project.id)
+    await create_message(
+        session,
+        project_id=project_id,
+        type="user",
+        content=body.prompt,
+        events=[],
+        agent_name=None,
+        sequence=0,
+    )
 
     deps = CodingDeps(
         user_id=user_id,
         project_id=project_id,
         model_name=body.selected_model,
     )
-    await tc.start_workflow(
+    await temporal_client.start_workflow(
         AppBuildWorkflow.run,
         args=[body.prompt, deps],
         id=temporal_workflow_id,
@@ -97,9 +129,11 @@ async def run_agent(
     response_model=list[ProjectSummaryResponse],
     summary="List recent projects for the sidebar",
 )
-async def get_projects(user_id: str = Depends(get_current_user)):
-    async with AsyncSessionLocal() as session:
-        projects = await list_projects(session, user_id=user_id, limit=20)
+async def get_projects(
+    user_id: str = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    projects = await list_projects(session, user_id=user_id, limit=20)
     return [
         ProjectSummaryResponse(
             project_id=str(p.id),
@@ -117,9 +151,13 @@ async def get_projects(user_id: str = Depends(get_current_user)):
     summary="SSE stream of agent events for a project",
     responses={200: {"content": {"text/event-stream": {}}, "description": "Server-sent events"}},
 )
-async def stream_phase(project_id: str, request: Request, user_id: str = Depends(get_current_user)):
-    async with AsyncSessionLocal() as session:
-        await _get_owned_project(session, project_id, user_id)
+async def stream_phase(
+    project_id: str,
+    request: Request,
+    user_id: str = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    await _get_owned_project(session, project_id, user_id)
 
     raw_last = request.headers.get("last-event-id", "")
     last_seq = int(raw_last) if raw_last.isdigit() else -1
@@ -179,13 +217,19 @@ async def stream_phase(project_id: str, request: Request, user_id: str = Depends
     summary="Get project metadata and status",
     responses={404: {"description": "Project not found"}},
 )
-async def get_project_detail(project_id: str, user_id: str = Depends(get_current_user)):
-    async with AsyncSessionLocal() as session:
-        project = await _get_owned_project(session, project_id, user_id)
-        total_tokens = await get_project_total_tokens(session, project_id)
+async def get_project_detail(
+    project_id: str,
+    user_id: str = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    project = await _get_owned_project(session, project_id, user_id)
+    total_tokens = await get_project_total_tokens(session, project_id)
 
     if project.sandbox_id and project.status == "complete":
-        asyncio.ensure_future(AsyncSandbox.connect(project.sandbox_id))
+        _fire_and_forget(
+            AsyncSandbox.connect(project.sandbox_id),
+            description=f"sandbox connect for project {project_id}",
+        )
 
     return ProjectDetailResponse(
         project_id=str(project.id),
@@ -207,10 +251,13 @@ async def get_project_detail(project_id: str, user_id: str = Depends(get_current
     summary="Get the full conversation thread for a project",
     responses={404: {"description": "Project not found"}},
 )
-async def get_project_messages(project_id: str, user_id: str = Depends(get_current_user)):
-    async with AsyncSessionLocal() as session:
-        await _get_owned_project(session, project_id, user_id)
-        messages = await get_messages(session, project_id)
+async def get_project_messages(
+    project_id: str,
+    user_id: str = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    await _get_owned_project(session, project_id, user_id)
+    messages = await get_messages(session, project_id)
 
     return [
         MessageResponse(
@@ -233,14 +280,13 @@ async def get_project_messages(project_id: str, user_id: str = Depends(get_curre
     summary="Approve the generated plan and start building",
 )
 async def approve_plan(
-    request: Request,
     project_id: str,
     user_id: str = Depends(get_current_user),
+    temporal_client: Client = Depends(get_temporal_client),
+    session: AsyncSession = Depends(get_session),
 ):
-    async with AsyncSessionLocal() as session:
-        project = await _get_owned_project(session, project_id, user_id)
-    tc = request.app.state.temporal_client
-    handle = tc.get_workflow_handle(project.workflow_id)
+    project = await _get_owned_project(session, project_id, user_id)
+    handle = temporal_client.get_workflow_handle(project.workflow_id)
     await handle.signal(AppBuildWorkflow.approve_plan)
     return SignalResponse(signaled="approve_plan")
 
@@ -251,28 +297,27 @@ async def approve_plan(
     summary="Reject the plan and request a revision",
 )
 async def reject_plan(
-    request: Request,
     project_id: str,
     feedback: str = "",
     user_id: str = Depends(get_current_user),
+    temporal_client: Client = Depends(get_temporal_client),
+    session: AsyncSession = Depends(get_session),
 ):
-    async with AsyncSessionLocal() as session:
-        project = await _get_owned_project(session, project_id, user_id)
-        tc = request.app.state.temporal_client
-        handle = tc.get_workflow_handle(project.workflow_id)
-        await handle.signal(AppBuildWorkflow.reject_plan, feedback)
-        if feedback.strip():
-            existing = await get_messages(session, project_id)
-            next_seq = max((m.sequence for m in existing), default=0) + 1
-            await create_message(
-                session,
-                project_id=project_id,
-                type="user",
-                content=feedback.strip(),
-                events=[],
-                agent_name=None,
-                sequence=next_seq,
-            )
+    project = await _get_owned_project(session, project_id, user_id)
+    handle = temporal_client.get_workflow_handle(project.workflow_id)
+    await handle.signal(AppBuildWorkflow.reject_plan, feedback)
+    if feedback.strip():
+        existing = await get_messages(session, project_id)
+        next_seq = max((m.sequence for m in existing), default=0) + 1
+        await create_message(
+            session,
+            project_id=project_id,
+            type="user",
+            content=feedback.strip(),
+            events=[],
+            agent_name=None,
+            sequence=next_seq,
+        )
     return SignalResponse(signaled="reject_plan", feedback=feedback)
 
 
@@ -282,20 +327,20 @@ async def reject_plan(
     summary="Delete a project and terminate any running workflow",
 )
 async def delete_project_endpoint(
-    request: Request,
     project_id: str,
     user_id: str = Depends(get_current_user),
+    temporal_client: Client = Depends(get_temporal_client),
+    session: AsyncSession = Depends(get_session),
 ):
-    async with AsyncSessionLocal() as session:
-        project = await _get_owned_project(session, project_id, user_id)
-        temporal_wf_id = project.workflow_id
-        await delete_project(session, project_id)
+    project = await _get_owned_project(session, project_id, user_id)
+    temporal_wf_id = project.workflow_id
+    await delete_project(session, project_id)
+
     if temporal_wf_id:
-        tc = request.app.state.temporal_client
         try:
-            await tc.get_workflow_handle(temporal_wf_id).terminate(reason="Deleted by user")
-        except Exception:
-            pass
+            await temporal_client.get_workflow_handle(temporal_wf_id).terminate(reason="Deleted by user")
+        except Exception as exc:
+            logger.warning("Failed to terminate workflow %s: %s", temporal_wf_id, exc)
 
 
 # ── Profile ───────────────────────────────────────────────────────────────────
@@ -305,16 +350,18 @@ async def delete_project_endpoint(
     response_model=ProfileResponse,
     summary="Upsert profile from Kinde auth user data",
 )
-async def sync_profile(body: ProfileSyncRequest):
-    async with AsyncSessionLocal() as session:
-        profile = await upsert_profile(
-            session,
-            id=body.id,
-            email=body.email,
-            first_name=body.first_name,
-            last_name=body.last_name,
-            picture=body.picture,
-        )
+async def sync_profile(
+    body: ProfileSyncRequest,
+    session: AsyncSession = Depends(get_session),
+):
+    profile = await upsert_profile(
+        session,
+        id=body.id,
+        email=body.email,
+        first_name=body.first_name,
+        last_name=body.last_name,
+        picture=body.picture,
+    )
     return ProfileResponse(
         id=profile.id,
         email=profile.email,
@@ -329,9 +376,11 @@ async def sync_profile(body: ProfileSyncRequest):
     response_model=ProfileResponse,
     summary="Get profile by Kinde user ID",
 )
-async def get_profile_endpoint(kinde_id: str):
-    async with AsyncSessionLocal() as session:
-        profile = await get_profile(session, kinde_id)
+async def get_profile_endpoint(
+    kinde_id: str,
+    session: AsyncSession = Depends(get_session),
+):
+    profile = await get_profile(session, kinde_id)
     if not profile:
         raise HTTPException(status_code=404, detail="Profile not found")
     return ProfileResponse(
@@ -350,9 +399,11 @@ async def get_profile_endpoint(kinde_id: str):
     response_model=SettingsResponse,
     summary="Get GitHub integration settings for the current user",
 )
-async def read_settings(user_id: str = Depends(get_current_user)):
-    async with AsyncSessionLocal() as session:
-        cfg = await get_settings(session, user_id)
+async def read_settings(
+    user_id: str = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    cfg = await get_settings(session, user_id)
     if not cfg:
         return SettingsResponse(github_token_set=False, github_username="", github_email="", github_repo_private=False)
     return SettingsResponse(
@@ -371,16 +422,16 @@ async def read_settings(user_id: str = Depends(get_current_user)):
 async def save_settings(
     body: SettingsRequest,
     user_id: str = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
 ):
-    async with AsyncSessionLocal() as session:
-        cfg = await upsert_settings(
-            session,
-            user_id=user_id,
-            github_token=body.github_token,
-            github_username=body.github_username,
-            github_email=body.github_email,
-            github_repo_private=body.github_repo_private,
-        )
+    cfg = await upsert_settings(
+        session,
+        user_id=user_id,
+        github_token=body.github_token,
+        github_username=body.github_username,
+        github_email=body.github_email,
+        github_repo_private=body.github_repo_private,
+    )
     return SettingsResponse(
         github_token_set=bool(cfg.github_token),
         github_username=cfg.github_username,
