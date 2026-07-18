@@ -61,7 +61,7 @@ def make_event_stream_handler():
         # Background heartbeat keeps Temporal informed even between LLM tokens.
         # Without this, a long tool call or slow model response could exceed
         # heartbeat_timeout and cause a spurious activity failure.
-        hb = asyncio.create_task(_heartbeat_loop())
+        heart_beat = asyncio.create_task(_heartbeat_loop())
 
         text_buffer = ""
         last_flush = time.monotonic()
@@ -99,9 +99,9 @@ def make_event_stream_handler():
             await flush_text()
             await publish_event(project_id, {"type": "agent_done"})
         finally:
-            hb.cancel()
+            heart_beat.cancel()
             with contextlib.suppress(asyncio.CancelledError):
-                await hb
+                await heart_beat
 
     return handler
 

@@ -1,6 +1,6 @@
 # Part 4 — Forge: AI-Powered App Builder
 
-[![Watch on YouTube](https://img.shields.io/badge/Watch-Part%204-red)](https://www.youtube.com/@joxiahdev)
+[![Watch on YouTube](https://img.shields.io/badge/Watch-Part%204-red)](https://youtu.be/J0_GeI8Srzc)
 [![Series Overview](https://img.shields.io/badge/Series-Overview-blue)](https://github.com/bjoxiah/pydantic-ai-series)
 
 > Part of the **[Master Pydantic AI Series](https://github.com/bjoxiah/pydantic-ai-series)** — a hands-on series on building production AI agents with Pydantic AI.
@@ -16,7 +16,7 @@ Forge is a SaaS platform where you describe a mobile app in plain English and an
 | Part 1 | Foundation & AG-UI Protocol | [![Part 1](https://img.shields.io/badge/Watch-Part%201-red)](https://youtu.be/zgrGWLNnfqg) | [`intro-lessons`](https://github.com/bjoxiah/pydantic-ai-series/tree/intro-lessions) · [`ag-ui-protocol-lesson`](https://github.com/bjoxiah/pydantic-ai-series/tree/ag-ui-protocol-lesson) |
 | Part 2 | Multi-Agent Systems & Copilotkit | [![Part 2](https://img.shields.io/badge/Watch-Part%202-red)](https://youtu.be/rJrCAssCqpE) | [`multi-agent`](https://github.com/bjoxiah/pydantic-ai-series/tree/multi-agent) |
 | Part 3 | No Code AI Agent Builder | [![Part 3](https://img.shields.io/badge/Watch-Part%203-red)](https://youtu.be/ILHtYme4O60) | [`no-code-agent`](https://github.com/bjoxiah/pydantic-ai-series/tree/no-code-agent) |
-| **Part 4** | **Forge — AI-Powered App Builder** | [![Part 4](https://img.shields.io/badge/Watch-Part%204-red)](https://www.youtube.com/@joxiahdev) | **← you are here** |
+| **Part 4** | **Forge — AI-Powered App Builder** | [![Part 4](https://img.shields.io/badge/Watch-Part%204-red)](https://youtu.be/J0_GeI8Srzc) | **← you are here** |
 
 ---
 
@@ -159,10 +159,7 @@ KINDE_POST_LOGIN_REDIRECT_URL=http://localhost:3000/dashboard
 
 ### Option A — Docker Compose (recommended)
 
-The `ENCRYPTION_KEY` is interpolated by Docker Compose from your shell, so export it first:
-
 ```bash
-export ENCRYPTION_KEY=$(grep ^ENCRYPTION_KEY backend/.env | cut -d= -f2)
 docker compose up --build
 ```
 
@@ -175,6 +172,18 @@ docker compose up --build
 | RedisInsight | http://localhost:5540 |
 
 Alembic migrations run automatically on API startup. The worker starts alongside the API container.
+
+### 4. Configure GitHub credentials
+
+Once the app is running, open **http://localhost:3000**, sign in, and click the settings icon. You must fill in:
+
+| Field | Where to get it |
+|-------|----------------|
+| GitHub Username | Your GitHub username |
+| GitHub Token | [github.com/settings/tokens](https://github.com/settings/tokens) — needs `repo` scope |
+| Repo visibility | Public or Private |
+
+The agent uses these to create repos, push code, and open pull requests on your behalf. Builds will fail without them.
 
 To restart only the worker (for the durability demo):
 

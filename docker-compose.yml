@@ -119,7 +119,6 @@ services:
       TEMPORAL_URL: temporal:7233
       REDIS_URL: redis://redis:6379
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/app_db
-      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
     ports:
       - "8000:8000"
     volumes:
@@ -147,7 +146,6 @@ services:
       TEMPORAL_URL: temporal:7233
       REDIS_URL: redis://redis:6379
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/app_db
-      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
     volumes:
       - ./backend:/app
       - worker_venv:/app/.venv

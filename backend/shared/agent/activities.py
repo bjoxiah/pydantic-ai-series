@@ -32,7 +32,7 @@ async def create_sandbox(user_id: str) -> str:
             "Please configure them in Settings before running a build."
         )
 
-    hb = asyncio.create_task(_heartbeat_loop())
+    heart_beat = asyncio.create_task(_heartbeat_loop())
     try:
         sandbox = await AsyncSandbox.create(
             template="react-native-node22",
@@ -49,9 +49,9 @@ async def create_sandbox(user_id: str) -> str:
             }
         )
     finally:
-        hb.cancel()
+        heart_beat.cancel()
         with contextlib.suppress(asyncio.CancelledError):
-            await hb
+            await heart_beat
 
     return sandbox.sandbox_id
 
@@ -60,7 +60,7 @@ async def create_sandbox(user_id: str) -> str:
 async def serve_web_build(sandbox_id: str, project_path: str, app_name: str) -> dict:
     sandbox = await AsyncSandbox.connect(sandbox_id)
 
-    hb = asyncio.create_task(_heartbeat_loop())
+    heart_beat = asyncio.create_task(_heartbeat_loop())
     try:
         export_proc = await sandbox.commands.run(
             "npx expo export --platform web",
@@ -80,9 +80,9 @@ async def serve_web_build(sandbox_id: str, project_path: str, app_name: str) -> 
         )
         await asyncio.sleep(2)
     finally:
-        hb.cancel()
+        heart_beat.cancel()
         with contextlib.suppress(asyncio.CancelledError):
-            await hb
+            await heart_beat
 
     return {"preview_url": f"https://{sandbox.get_host(_SERVE_PORT)}", "app_name": app_name}
 
