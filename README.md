@@ -11,7 +11,9 @@ This series is designed to help you:
 - Understand and implement the AG-UI Protocol
 - Connect AI agents to real frontend applications
 - Understand and implement multi-agent systems
-- Understand how to extend Pydantic AI
+- Understand how to extend Pydantic AI with Capabilities
+- Build durable AI workflows with Temporal
+- Run agents in isolated cloud sandboxes with E2B
 
 ## Part 1 — Foundation & AG-UI Protocol
 
@@ -56,6 +58,23 @@ This series is designed to help you:
 
 **Lesson branch:** [`no-code-agent`](https://github.com/bjoxiah/pydantic-ai-series/tree/no-code-agent)
 
+## Part 4 — Durable Agentic Workflows - Forge: AI-Powered App Builder
+
+[![Watch on YouTube](https://img.shields.io/badge/Watch-Part%204-red)](https://youtu.be/J0_GeI8Srzc)
+
+**What's covered:**
+- Temporal durable workflows with Pydantic AI TemporalAgent
+- Pydantic AI Capabilities (terminal, file system, git)
+- E2B cloud sandboxes for isolated app building
+- Multi-phase AI workflow — planner agent + engineering agent
+- Human in the loop — plan approval before building
+- SSE streaming with Redis pub/sub
+- Next.js frontend with real-time event streaming and auto-reconnect
+- Kinde authentication (RS256 JWT via PyJWT)
+- Logfire for logging & observability
+
+**Lesson branch:** [`agent-workflow`](https://github.com/bjoxiah/pydantic-ai-series/tree/agent-workflow)
+
 ## Repository Structure
 
 Each part of the series has its own branch containing the lesson code:
@@ -66,6 +85,7 @@ Each part of the series has its own branch containing the lesson code:
 | [`ag-ui-protocol-lesson`](https://github.com/bjoxiah/pydantic-ai-series/tree/ag-ui-protocol-lesson) | AG-UI Protocol implementation and demo |
 | [`multi-agent`](https://github.com/bjoxiah/pydantic-ai-series/tree/multi-agent) | Multi-Agent System implementation and demo |
 | [`no-code-agent`](https://github.com/bjoxiah/pydantic-ai-series/tree/no-code-agent) | Pydantic Capability implementation and demo |
+| [`agent-workflow`](https://github.com/bjoxiah/pydantic-ai-series/tree/agent-workflow) | Forge — AI-Powered App Builder with Temporal + E2B |
 
 ## Resources
 
