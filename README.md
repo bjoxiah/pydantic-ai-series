@@ -75,6 +75,20 @@ This series is designed to help you:
 
 **Lesson branch:** [`agent-workflow`](https://github.com/bjoxiah/pydantic-ai-series/tree/agent-workflow)
 
+## Part 5 — Evaluating AI Agents with Pydantic Evals
+
+[![Watch on YouTube](https://img.shields.io/badge/Watch-Part%205-red)](https://youtu.be/mLVo_-PJHSM)
+
+**What's covered:**
+- Evaluating AI agents with `pydantic-evals`
+- Building `Case`s and `Dataset`s for repeatable evaluation runs
+- `LLMJudge` evaluator — rubric-based scoring (helpfulness, professionalism, empathy, friendliness)
+- Assertions vs scores, and reading evaluation reports
+- OpenRouter model provider setup with Pydantic AI
+- Logfire for logging & observability
+
+**Lesson branch:** [`agent-evaluation`](https://github.com/bjoxiah/pydantic-ai-series/tree/agent-evaluation)
+
 ## Repository Structure
 
 Each part of the series has its own branch containing the lesson code:
@@ -86,6 +100,7 @@ Each part of the series has its own branch containing the lesson code:
 | [`multi-agent`](https://github.com/bjoxiah/pydantic-ai-series/tree/multi-agent) | Multi-Agent System implementation and demo |
 | [`no-code-agent`](https://github.com/bjoxiah/pydantic-ai-series/tree/no-code-agent) | Pydantic Capability implementation and demo |
 | [`agent-workflow`](https://github.com/bjoxiah/pydantic-ai-series/tree/agent-workflow) | Forge — AI-Powered App Builder with Temporal + E2B |
+| [`agent-evaluation`](https://github.com/bjoxiah/pydantic-ai-series/tree/agent-evaluation) | Evaluating AI agents with Pydantic Evals |
 
 ## Resources
 
