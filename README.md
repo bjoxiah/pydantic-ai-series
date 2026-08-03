@@ -77,7 +77,7 @@ This series is designed to help you:
 
 ## Part 5 — Evaluating AI Agents with Pydantic Evals
 
-[![Watch on YouTube](https://img.shields.io/badge/Watch-Part%205-red)](https://youtu.be/5ebFr4Oxq9k)
+[![Watch on YouTube](https://img.shields.io/badge/Watch-Part%205-red)](https://youtu.be/F_ZMFNwEpa8)
 
 **What's covered:**
 - Evaluating AI agents with `pydantic-evals`
